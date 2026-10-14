@@ -153,11 +153,13 @@ nav.tabs .badge{position:absolute;top:2px;right:6px;background:var(--red);color:
     <p id="pushState">Alerts are off on this device.</p>
     <button class="btn" id="pushOn2">Turn on alerts</button>
     <button class="btn" id="pushTest" style="margin-left:6px">Send a test alert</button>
+    <button class="btn" id="soundTest" style="margin-left:6px">Play my voice alarm</button>
+    <p class="hint" id="soundNote" style="color:var(--muted);font-size:13px;margin-top:10px">On this laptop your voice plays when an urgent alert arrives while the Command Center window is open (it can be minimized). Install it from Chrome’s address bar so it runs as its own window. On your phone the Bid Desk app rings with your voice.</p>
     <div id="pushSetup" hidden style="margin-top:18px;border:1px solid var(--line);border-radius:12px;padding:14px">
-      <p style="margin-top:0">Alerts need two values from Firebase (project bwc-bid-desk). Paste them here once; every device then uses them.</p>
+      <p style="margin-top:0">Alerts need one thing from Firebase: open console.firebase.google.com → BWC Bid Desk → Project settings → General → scroll to “BWC Command Center” → choose “Config”, and copy the block. Paste it here once; every device then uses it.</p>
       <label for="fbCfg">firebaseConfig block</label>
       <textarea id="fbCfg" rows="6" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:13px/1.4 ui-monospace,monospace" placeholder="{ apiKey: &quot;…&quot;, authDomain: &quot;…&quot;, projectId: &quot;bwc-bid-desk&quot;, … }"></textarea>
-      <label for="vapid">Web Push key (Cloud Messaging → Web Push certificates)</label>
+      <label for="vapid">Web Push key (optional — Cloud Messaging → Web Push certificates)</label>
       <input id="vapid" placeholder="B…">
       <p id="pushErr" style="color:var(--red);min-height:1.2em"></p>
       <button class="btn primary" id="pushSave">Save alert settings</button>
@@ -181,6 +183,7 @@ const store={get(k,d){try{return localStorage.getItem(k)??d}catch(e){return d}},
 const DEFAULT_BASE='https://n8n.srv1962408.hstgr.cloud/webhook';
 let base=store.get('hub.base',DEFAULT_BASE), key=store.get('hub.key',''), data=null, filter='all';
 const DEMO=new URLSearchParams(location.search).has('demo')||location.protocol==='file:';
+const IN_APP=new URLSearchParams(location.search).get('app')==='biddesk';
 if(store.get('hub.base','').includes('/webhook')===false)store.set('hub.base',DEFAULT_BASE);
 const SYS={email:'Cold email',seo:'Website SEO',bids:'Bid Desk',linkedin:'LinkedIn',system:'System'};
 
@@ -260,7 +263,8 @@ async function pushToken(cfg){
   store.set('hub.fb',JSON.stringify(cfg.firebase));
   const reg=await navigator.serviceWorker.register('sw.js?cfg='+encodeURIComponent(JSON.stringify(cfg.firebase)));
   await navigator.serviceWorker.ready;
-  return firebase.messaging().getToken({vapidKey:cfg.vapid,serviceWorkerRegistration:reg});
+  const opts={serviceWorkerRegistration:reg}; if(cfg.vapid) opts.vapidKey=cfg.vapid;
+  return firebase.messaging().getToken(opts);
 }
 function deviceLabel(){const ua=navigator.userAgent;return /Android/i.test(ua)?'Android phone':/Windows/i.test(ua)?'Windows laptop':/Mac/i.test(ua)?'Mac':'Browser'}
 async function enablePush(silent){
@@ -268,7 +272,7 @@ async function enablePush(silent){
   try{
     if(!('serviceWorker' in navigator)||!('Notification' in window)) throw new Error('this browser can’t show alerts');
     const cfg=await api('push_config');
-    if(!cfg.firebase||!cfg.vapid) throw new Error('alerts aren’t set up on the server yet');
+    if(!cfg.firebase) throw new Error('paste the firebaseConfig block in Settings first');
     const perm=silent?Notification.permission:await Notification.requestPermission();
     if(perm!=='granted') throw new Error('notifications are blocked for this site — allow them in the browser’s site settings');
     const token=await pushToken(cfg);
@@ -279,6 +283,7 @@ async function enablePush(silent){
   pushBanner();
 }
 function pushBanner(){
+  if(IN_APP)return;
   const on=store.get('hub.push','')==='on'&&'Notification' in window&&Notification.permission==='granted';
   $('#pushBanner').hidden=on||DEMO||!data;
   $('#pushState').textContent=on?'Alerts are on for this device ('+deviceLabel()+').':'Alerts are off on this device.';
@@ -286,6 +291,25 @@ function pushBanner(){
 $('#pushOn').onclick=()=>enablePush(false);
 $('#pushOn2').onclick=()=>enablePush(false);
 $('#pushTest').onclick=async()=>{try{const r=await api('test_push');toast(r.message||'Test alert sent')}catch(e){toast('Test failed: '+e.message)}};
+/* Voice alarm: the service worker tells open windows when a push arrives; the window plays the sound. */
+const SOUNDS={urgent:'voice.mp3',problem:'problem.mp3',normal:'chime.mp3'};
+let alarmAudio=null;
+function playAlarm(kind){
+  try{
+    if(alarmAudio){alarmAudio.pause();alarmAudio=null}
+    const a=new Audio(SOUNDS[kind]||SOUNDS.urgent);a.volume=1;let n=0;const max=kind==='urgent'?3:1;
+    a.onended=()=>{if(++n<max&&alarmAudio===a){a.currentTime=0;a.play().catch(()=>{})}};
+    alarmAudio=a;a.play().catch(()=>{});
+  }catch(e){}
+}
+function stopAlarm(){if(alarmAudio){alarmAudio.pause();alarmAudio=null}}
+['click','keydown'].forEach(ev=>document.addEventListener(ev,stopAlarm,{capture:true}));
+if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',ev=>{
+  const m=ev.data||{}; if(m.type!=='hub-alarm')return;
+  playAlarm(m.kind); if(!document.hidden){toast(m.title||'Something needs you');load()}
+});
+$('#soundTest').onclick=e=>{e.stopPropagation();playAlarm('urgent')};
+if(IN_APP){$('#pushBanner').remove();['#pushState','#pushOn2','#pushTest','#soundTest'].forEach(q=>{const el=$(q);if(el)el.hidden=true});$('#soundNote').textContent='Alerts for this phone come from the Bid Desk app with your voice. Use “Test voice alarm” at the top of this screen to hear it.'}
 let pushChecked=false;
 function showSetup(){
   document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
@@ -303,11 +327,11 @@ $('#setupSave').onclick=async()=>{
 $('#newKey').oninput=()=>{$('#setupErr').textContent=''};
 async function checkPushSetup(){
   if(DEMO)return;
-  try{const c=await api('push_config');$('#pushSetup').hidden=!!(c.firebase&&c.vapid)}catch(e){}
+  try{const c=await api('push_config');$('#pushSetup').hidden=!!c.firebase}catch(e){}
 }
 $('#pushSave').onclick=async()=>{
   const fb=$('#fbCfg').value.trim(),vk=$('#vapid').value.trim();
-  if(!fb||!vk){$('#pushErr').textContent='Paste both values first.';return}
+  if(!fb){$('#pushErr').textContent='Paste the firebaseConfig block first.';return}
   $('#pushErr').textContent='';
   try{const r=await api('save_push',{firebase:fb,vapid:vk});if(r.ok===false)throw new Error(r.message);
     toast('Alert settings saved');$('#pushSetup').hidden=true;$('#fbCfg').value='';$('#vapid').value='';
@@ -338,7 +362,7 @@ $('#save').onclick=()=>{key=$('#key').value.trim();base=($('#base').value.trim()
 $('#theme').onclick=()=>{const cur=document.documentElement.dataset.theme||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');const nx=cur==='light'?'dark':'light';document.documentElement.dataset.theme=nx;store.set('hub.theme',nx)};
 const savedTheme=store.get('hub.theme','');if(savedTheme)document.documentElement.dataset.theme=savedTheme;
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
-setInterval(()=>{if(!document.hidden)load()},120000);
+setInterval(()=>{if(!document.hidden)load()},300000);
 if('serviceWorker' in navigator&&!DEMO){const fb=store.get('hub.fb','');navigator.serviceWorker.register('sw.js'+(fb?'?cfg='+encodeURIComponent(fb):'')).catch(()=>{})}
 
 /* Demo data so the layout can be reviewed before the server is connected */
