@@ -153,8 +153,9 @@ nav.tabs .badge{position:absolute;top:2px;right:6px;background:var(--red);color:
     <p id="pushState">Alerts are off on this device.</p>
     <button class="btn" id="pushOn2">Turn on alerts</button>
     <button class="btn" id="pushTest" style="margin-left:6px">Send a test alert</button>
-    <button class="btn" id="soundTest" style="margin-left:6px">Play my voice alarm</button>
-    <p class="hint" id="soundNote" style="color:var(--muted);font-size:13px;margin-top:10px">On this laptop your voice plays when an urgent alert arrives while the Command Center window is open (it can be minimized). Install it from Chrome’s address bar so it runs as its own window. On your phone the Bid Desk app rings with your voice.</p>
+    <button class="btn" id="alarmSettings" style="margin-left:6px" hidden>Sound settings</button>
+    <p class="hint" id="soundNote" style="color:var(--muted);font-size:13px;margin-top:10px">Each system has its own alarm in your voice. Tap one to hear it.</p>
+    <div id="soundList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px"></div>
     <div id="pushSetup" hidden style="margin-top:18px;border:1px solid var(--line);border-radius:12px;padding:14px">
       <p style="margin-top:0">Alerts need one thing from Firebase: open console.firebase.google.com → BWC Bid Desk → Project settings → General → scroll to “BWC Command Center” → choose “Config”, and copy the block. Paste it here once; every device then uses it.</p>
       <label for="fbCfg">firebaseConfig block</label>
@@ -222,6 +223,7 @@ function render(){
   c.innerHTML=(n===0?'All clear':n)+`<small>${n===0?'Nothing needs you. Every system is running.':n===1?'thing needs you':'things need you'} · updated ${ago(data.generated_at)}</small>`;
   const b=$('#navBadge');b.hidden=!n;b.textContent=n;
   if('setAppBadge' in navigator){n?navigator.setAppBadge(n).catch(()=>{}):navigator.clearAppBadge().catch(()=>{})}
+  try{afterRender(open)}catch(e){}
 
   $('#pulse').innerHTML=(data.systems||[]).map(s=>`<button class="lane" data-sys="${esc(s.id)}" aria-label="${esc(s.name)}: ${esc(s.status)}">
     <b>${esc(s.name)}</b>
@@ -247,6 +249,7 @@ function renderItems(){
     <div class="meta"><span class="sys">${esc(SYS[i.system]||i.system)}</span><span>${ago(i.created_at)}</span>${i.urgency==='urgent'?'<span style="color:var(--red)">Urgent</span>':''}</div>
     <h3>${esc(i.title)}</h3>${i.body?`<p class="${i.body.length>320?'clamp':''}">${esc(i.body)}</p>${i.body.length>320?'<button class="more">Show all</button>':''}`:''}
     <div class="acts">${(i.actions||[]).map(a=>`<button class="btn ${esc(a.style||'')}" data-id="${esc(i.id)}" data-a="${esc(a.id)}" data-label="${esc(a.done||a.label)}">${esc(a.label)}</button>`).join('')}
+    ${i.system==='bids'&&MODE==='android'?`<button class="btn" onclick="native('openBidDesk').catch(e=>toast(e.message))">Open Bid Desk</button>`:''}
     ${i.link?`<a class="btn" href="${esc(i.link)}" target="_blank" rel="noopener">Open</a>`:''}
     <button class="btn" data-id="${esc(i.id)}" data-a="dismiss" data-label="Dismissed">Dismiss</button></div></article>`).join('')
     :`<div class="empty"><strong>${filter==='all'?'Nothing needs you':'Nothing here'}</strong>${filter==='all'?'Your automations are running on their own. The daily digest lands at 9:00.':'This system has nothing waiting. <button class="link" onclick="filter=\'all\';render()">Show all</button>'}</div>`;
@@ -283,7 +286,7 @@ async function enablePush(silent){
   pushBanner();
 }
 function pushBanner(){
-  if(IN_APP)return;
+  if(MODE!=='web')return;
   const on=store.get('hub.push','')==='on'&&'Notification' in window&&Notification.permission==='granted';
   $('#pushBanner').hidden=on||DEMO||!data;
   $('#pushState').textContent=on?'Alerts are on for this device ('+deviceLabel()+').':'Alerts are off on this device.';
@@ -291,25 +294,89 @@ function pushBanner(){
 $('#pushOn').onclick=()=>enablePush(false);
 $('#pushOn2').onclick=()=>enablePush(false);
 $('#pushTest').onclick=async()=>{try{const r=await api('test_push');toast(r.message||'Test alert sent')}catch(e){toast('Test failed: '+e.message)}};
-/* Voice alarm: the service worker tells open windows when a push arrives; the window plays the sound. */
-const SOUNDS={urgent:'voice.mp3',problem:'problem.mp3',normal:'chime.mp3'};
+/* Alarms: one voice clip per kind of alert, in the web app, the Android app and the Windows app. */
+const MODE=(()=>{const a=new URLSearchParams(location.search).get('app');if(a==='android'&&window.Capacitor)return'android';if(a==='desktop'&&window.ccDesktop)return'desktop';if(a==='biddesk')return'biddesk';return'web'})();
+const SOUND_KEYS=[['linkedin','LinkedIn post approval'],['email_reply','Email reply received'],['email_approve','Cold email to review'],['bidding','Bid Desk problem'],['seo','Website / SEO alert'],['failure','Automation failed'],['daily_report','Daily report']];
+const REPEAT={email_reply:2,failure:2};
+const SOUND_FILES={linkedin:'linkedin_post_approval.mp3',email_reply:'New_email_reply.mp3',email_approve:'Cold_email_ready_for_review.mp3',bidding:'Bid_desk_needs_attention.mp3',seo:'SEO_needs_a_look.mp3',failure:'Automation_has_failed.mp3',daily_report:'Daily_report_ready.mp3'};
+function soundFor(i){
+  if(i.kind==='error')return'failure';
+  if(i.system==='email')return i.kind==='reply'?'email_reply':i.kind==='approval'?'email_approve':i.urgency==='urgent'?'failure':'email_approve';
+  if(i.system==='linkedin')return /fail/i.test(i.title||'')?'failure':'linkedin';
+  if(i.system==='bids')return'bidding';
+  if(i.system==='seo')return'seo';
+  return'failure';
+}
+const native=(m,o)=>window.Capacitor.nativePromise('Hub',m,o||{});
 let alarmAudio=null;
-function playAlarm(kind){
+function playAlarm(snd){
+  snd=({urgent:'email_reply',problem:'failure',normal:'daily_report'})[snd]||snd;
+  if(!SOUND_KEYS.some(k=>k[0]===snd))snd='failure';
+  if(MODE==='android'){native('testSound',{kind:snd}).catch(()=>{});return}
   try{
     if(alarmAudio){alarmAudio.pause();alarmAudio=null}
-    const a=new Audio(SOUNDS[kind]||SOUNDS.urgent);a.volume=1;let n=0;const max=kind==='urgent'?3:1;
+    const a=new Audio('sounds/'+SOUND_FILES[snd]);a.volume=1;let n=0;const max=REPEAT[snd]||1;
     a.onended=()=>{if(++n<max&&alarmAudio===a){a.currentTime=0;a.play().catch(()=>{})}};
     alarmAudio=a;a.play().catch(()=>{});
   }catch(e){}
 }
 function stopAlarm(){if(alarmAudio){alarmAudio.pause();alarmAudio=null}}
 ['click','keydown'].forEach(ev=>document.addEventListener(ev,stopAlarm,{capture:true}));
-if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',ev=>{
+if('serviceWorker' in navigator&&MODE==='web') navigator.serviceWorker.addEventListener('message',ev=>{
   const m=ev.data||{}; if(m.type!=='hub-alarm')return;
-  playAlarm(m.kind); if(!document.hidden){toast(m.title||'Something needs you');load()}
+  playAlarm(m.sound||m.kind); if(!document.hidden){toast(m.title||'Something needs you');load()}
 });
-$('#soundTest').onclick=e=>{e.stopPropagation();playAlarm('urgent')};
-if(IN_APP){$('#pushBanner').remove();['#pushState','#pushOn2','#pushTest','#soundTest'].forEach(q=>{const el=$(q);if(el)el.hidden=true});$('#soundNote').textContent='Alerts for this phone come from the Bid Desk app with your voice. Use “Test voice alarm” at the top of this screen to hear it.'}
+$('#soundList').innerHTML=SOUND_KEYS.map(([k,l])=>`<button class="btn" data-snd="${k}">▶ ${esc(l)}</button>`).join('');
+document.querySelectorAll('[data-snd]').forEach(b=>b.onclick=e=>{e.stopPropagation();playAlarm(b.dataset.snd);if(MODE==='desktop')window.ccDesktop.notify({title:'Test: '+b.textContent.slice(2),body:'This is how this alert sounds on your laptop.',sound:b.dataset.snd,test:true})});
+const quietNow=()=>{const h=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Karachi',hour:'2-digit',hour12:false}).format(new Date()));return h>=23||h<8};
+const todayPk=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi'}).format(new Date());
+
+/* Android app: register this phone for native voice alarms. */
+async function registerNative(force){
+  try{
+    const {token}=await native('fcmToken');
+    if(!force&&token===store.get('hub.ntoken',''))return;
+    await api('register',{token,label:'Android app',platform:'android-app'});
+    store.set('hub.ntoken',token);
+    if(force)toast('This phone is registered for alarms');
+  }catch(e){if(force)toast('Couldn’t register this phone: '+e.message)}
+}
+/* Windows app: watch for new items and ring with the right voice. */
+function desktopWatch(open){
+  let seen={};try{seen=JSON.parse(store.get('hub.alerted','{}'))}catch(e){}
+  const first=!store.get('hub.alerted','');
+  const fresh=open.filter(i=>!seen[i.id]&&i.urgency!=='low'&&!(i.system==='bids'&&i.kind==='job'));
+  for(const i of open)seen[i.id]=seen[i.id]||Date.now();
+  const ids=Object.keys(seen).sort((a,b)=>seen[b]-seen[a]).slice(0,600);const keep={};ids.forEach(k=>keep[k]=seen[k]);
+  store.set('hub.alerted',JSON.stringify(keep));
+  if(!first&&fresh.length){
+    const rank=['failure','email_reply','bidding','linkedin','email_approve','seo'];
+    fresh.sort((a,b)=>rank.indexOf(soundFor(a))-rank.indexOf(soundFor(b)));
+    const loud=fresh.filter(i=>!quietNow()||soundFor(i)==='failure');
+    if(loud.length){const t=loud[0],snd=soundFor(t);playAlarm(snd);
+      window.ccDesktop.notify({title:loud.length===1?t.title:loud.length+' things need you',body:loud.length===1?String(t.body||'').slice(0,200):loud.slice(0,4).map(i=>'• '+i.title).join('\n'),sound:snd,urgent:snd==='failure'||snd==='email_reply'})}
+  }
+  const h=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Karachi',hour:'2-digit',hour12:false}).format(new Date()));
+  if(h>=9&&h<12&&store.get('hub.daily','')!==todayPk()){store.set('hub.daily',todayPk());if(!first){playAlarm('daily_report');window.ccDesktop.notify({title:'Daily report ready',body:open.length?open.length+' things need you today':'All clear: nothing needs you today',sound:'daily_report'})}}
+}
+function afterRender(open){
+  if(MODE==='android'&&key)registerNative(false);
+  if(MODE==='desktop'){desktopWatch(open);try{window.ccDesktop.badge(open.length)}catch(e){}}
+}
+if(MODE!=='web'){
+  const pb=$('#pushBanner');if(pb)pb.remove();
+  ['#pushOn2','#pushSetup'].forEach(q=>{const el=$(q);if(el)el.hidden=true});
+  $('#pushState').textContent=MODE==='android'?'This phone gets alarms through the Command Center app.':MODE==='desktop'?'This laptop gets alarms through the Command Center app. It keeps watching from the tray when the window is closed.':'Alerts for this phone come from the Bid Desk app.';
+  $('#soundNote').textContent=MODE==='android'?'Each system has its own alarm in your voice. Tap one to hear it. Use “Sound settings” to change volume or turn one off.':'Each system has its own alarm in your voice. Tap one to hear it.';
+}
+if(MODE==='android'){
+  $('#alarmSettings').hidden=false;$('#alarmSettings').onclick=()=>native('openSettings').catch(()=>{});
+  $('#pushTest').onclick=async()=>{await registerNative(true);try{const r=await api('test_push');toast(r.message||'Test alert sent')}catch(e){toast('Test failed: '+e.message)}};
+  try{window.Capacitor.addListener('Hub','token',()=>registerNative(true))}catch(e){}
+  try{window.Capacitor.addListener('Hub','opened',()=>{show('inbox');load()})}catch(e){}
+  document.addEventListener('click',e=>{const a=e.target.closest('a[target=_blank]');if(!a)return;e.preventDefault();native('openUrl',{url:a.href}).catch(()=>{})},true);
+}
+if(MODE==='desktop'){setInterval(load,60000)}
 let pushChecked=false;
 function showSetup(){
   document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
@@ -362,7 +429,7 @@ $('#save').onclick=()=>{key=$('#key').value.trim();base=($('#base').value.trim()
 $('#theme').onclick=()=>{const cur=document.documentElement.dataset.theme||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');const nx=cur==='light'?'dark':'light';document.documentElement.dataset.theme=nx;store.set('hub.theme',nx)};
 const savedTheme=store.get('hub.theme','');if(savedTheme)document.documentElement.dataset.theme=savedTheme;
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
-setInterval(()=>{if(!document.hidden)load()},300000);
+setInterval(()=>{if(!document.hidden&&MODE!=='desktop')load()},300000);
 if('serviceWorker' in navigator&&!DEMO){const fb=store.get('hub.fb','');navigator.serviceWorker.register('sw.js'+(fb?'?cfg='+encodeURIComponent(fb):'')).catch(()=>{})}
 
 /* Demo data so the layout can be reviewed before the server is connected */

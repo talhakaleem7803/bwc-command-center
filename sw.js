@@ -11,7 +11,7 @@ if (CONFIG && CONFIG.apiKey) {
 self.addEventListener('push', e => {
   let p = {}; try { p = e.data ? e.data.json() : {}; } catch (x) {}
   const d = p.data || {}, n = p.notification || {};
-  const msg = { type: 'hub-alarm', kind: d.kind || 'urgent', title: n.title || d.title || '' };
+  const msg = { type: 'hub-alarm', sound: d.sound || '', kind: d.kind || 'urgent', title: n.title || d.title || '' };
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(ws => ws.forEach(w => w.postMessage(msg))));
 });
 self.addEventListener('install', () => self.skipWaiting());
@@ -27,5 +27,5 @@ self.addEventListener('notificationclick', e => {
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   if (e.request.method !== 'GET' || u.origin !== self.location.origin) return;
-  e.respondWith(fetch(e.request).then(r => { const c = r.clone(); caches.open('hub-v2').then(x => x.put(e.request, c)); return r; }).catch(() => caches.match(e.request)));
+  e.respondWith(fetch(e.request).then(r => { const c = r.clone(); caches.open('hub-v3').then(x => x.put(e.request, c)); return r; }).catch(() => caches.match(e.request)));
 });
