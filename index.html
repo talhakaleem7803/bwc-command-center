@@ -140,6 +140,14 @@ nav.tabs .badge{position:absolute;top:2px;right:6px;background:var(--red);color:
 .detail .back{margin-bottom:14px}
 .detail .sys-card{border-radius:20px;padding:18px}
 .detail h2{margin-top:22px}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px}
+.mtile{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.mtile .v{font:700 22px/1.1 var(--display)}.mtile .l{font-size:12px;color:var(--muted)}
+.spark{display:flex;gap:2px;align-items:flex-end;height:22px;margin-top:6px}.spark i{flex:1;background:var(--cyan);border-radius:2px 2px 0 0;min-height:2px;opacity:.85}.spark i:last-child{opacity:1;background:var(--text)}
+.acct{width:100%;border-collapse:collapse;font-size:13px}.acct th{text-align:left;font-weight:500;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}.acct td{padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tscroll{overflow-x:auto}
+.badge-p{font-size:11px;font-weight:600;color:var(--red);background:color-mix(in srgb,var(--red) 16%,transparent);border-radius:999px;padding:1px 7px;margin-left:6px}
+.warnline{color:var(--gold);font-size:13px;margin:8px 0 0}.panel .warnline{margin:0}
 </style>
 </head>
 <body data-v="inbox">
@@ -226,7 +234,7 @@ const IN_APP=new URLSearchParams(location.search).get('app')==='biddesk';
 if(store.get('hub.base','').includes('/webhook')===false)store.set('hub.base',DEFAULT_BASE);
 const SYS={email:'Cold email',seo:'Website SEO',bids:'Bid Desk',linkedin:'LinkedIn posts',lileads:'LinkedIn Leads',system:'System'};
 /* Which numbers each panel puts first (by KPI label); other systems use their first numbers. */
-const PICK={email:['Sent, last 7 days','Reply rate','Bounce rate','Approved, waiting to send'],lileads:['Need you','Accounts paused']};
+const PICK={email:['Sent, last 7 days','Reply rate','Bounce rate','Approved, waiting to send'],lileads:['Invites today','Replies, 7 days','Accept rate, 7 days','Leads found today']};
 let detailId=null;
 
 function ago(ts){const m=Math.round((Date.now()-new Date(ts))/60000);if(m<1)return'just now';if(m<60)return m+'m ago';const h=Math.round(m/60);if(h<48)return h+'h ago';return Math.round(h/24)+'d ago'}
@@ -301,11 +309,19 @@ function itemHTML(i){
     <div class="meta"><span class="sys">${esc(SYS[i.system]||i.system)}</span><span>${ago(i.created_at)}</span>${i.urgency==='urgent'?'<span style="color:var(--red)">Urgent</span>':''}</div>
     <h3>${esc(i.title)}</h3>${i.body?`<p class="${i.body.length>320?'clamp':''}">${esc(i.body)}</p>${i.body.length>320?'<button class="more">Show all</button>':''}`:''}
     <div class="acts">${actBtns(i)}
+    ${/Suggested reply:/i.test(i.body||'')?`<button class="btn primary copy" data-copy="${esc(i.id)}">Copy reply</button>`:''}
     ${i.system==='bids'&&MODE==='android'?`<button class="btn" onclick="native('openBidDesk').catch(e=>toast(e.message))">Open Bid Desk</button>`:''}
     ${i.link?`<a class="btn" href="${esc(i.link)}" target="_blank" rel="noopener">Open</a>`:''}
     <button class="btn" data-id="${esc(i.id)}" data-a="dismiss" data-label="Dismissed">Dismiss</button></div></article>`;
 }
+async function copyReply(id){
+  const it=(data.items||[]).find(x=>String(x.id)===String(id));if(!it)return;
+  const txt=String(it.body||'').split(/Suggested reply:/i).slice(1).join('Suggested reply:').trim();
+  try{await navigator.clipboard.writeText(txt);toast('Reply copied')}
+  catch(e){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('Reply copied')}catch(x){toast('Couldn’t copy. Select the text instead.')}ta.remove()}
+}
 function bindActs(root){
+  root.querySelectorAll('[data-copy]').forEach(b=>b.onclick=e=>{e.stopPropagation();copyReply(b.dataset.copy)});
   root.querySelectorAll('.btn[data-a]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();act(btn)});
   root.querySelectorAll('a.btn').forEach(a=>a.addEventListener('click',e=>e.stopPropagation()));
   root.querySelectorAll('.more').forEach(b=>b.onclick=e=>{e.stopPropagation();const p=b.previousElementSibling;const o=p.classList.toggle('clamp');b.textContent=o?'Show all':'Show less'});
@@ -332,6 +348,7 @@ function renderPanels(open){
       <span class="ticks" aria-hidden="true">${(s.history||[]).slice(-14).map(h=>`<i class="${esc(h)}"></i>`).join('')}</span>
       ${big?`<div class="p-big"><div class="v">${esc(big.value)}</div><div class="l">${esc(big.label)}</div></div>`:'<div class="p-big"><div class="l">No numbers reported yet</div></div>'}
       ${small.length?`<div class="p-kpis">${small.map(k=>`<div><b>${esc(k.value)}</b>${esc(k.label)}</div>`).join('')}</div>`:''}
+      ${s.metrics&&liStale(s.metrics)?'<p class="warnline">LinkedIn worker offline?</p>':''}
       ${top?`<div class="p-issue${(top.actions||[]).length?' has-acts':''}"><div class="n">${its.length===1?'1 needs you':its.length+' need you'}</div><div class="t">${esc(top.title)}</div>${(top.actions||[]).length?`<div class="acts">${actBtns(top)}</div>`:''}</div>`
         :`<div class="p-foot">${s.last_run?'Last run '+ago(s.last_run):'Waiting for its first run'}</div>`}
     </article>`}).join('');
@@ -341,6 +358,26 @@ function renderPanels(open){
   });
   bindActs($('#panels'));
 }
+const liStale=m=>{if(!m)return false;const age=Date.now()-(Date.parse(m.updated||'')||Date.parse(m.pushed_at||'')||0);const h=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Karachi',hour:'2-digit',hour12:false}).format(new Date()));return age>7.2e6&&(h>=12||h<1)};
+const LI_NAMES={inv:'Invites sent',acc:'Accepted',msg:'Follow-ups sent',rep:'Replies',found:'Leads found',qual:'Leads qualified'};
+function liMetricsHTML(m){
+  const n=v=>v===null||v===undefined||v===''?'–':v, pct=v=>v===null||v===undefined||v===''?'–':v+'%';
+  const tile=(v,l,extra)=>`<div class="mtile"><div class="v">${esc(n(v))}</div><div class="l">${esc(l)}</div>${extra||''}</div>`;
+  const t=m.today||{},w=m.week||{},p=m.pipe||{},d=m.days||{},c=m.cost||{};
+  const spark=k=>{const a=(d[k]||[]).map(x=>+x||0);if(!a.length)return'';const mx=Math.max(1,...a);return`<div class="spark" title="${esc((d.d||[]).map((x,i)=>x+': '+a[i]).join(' · '))}">${a.map(x=>`<i style="height:${Math.round(x/mx*100)}%"></i>`).join('')}</div>`};
+  const K=Object.keys(LI_NAMES);
+  const LAB={INTERESTED:'Interested',QUESTION:'Question',NOT_NOW:'Not now',NOT_INTERESTED:'Not interested',UNSUBSCRIBE:'Unsubscribe',REFERRAL:'Referral',OOO:'Out of office',OTHER:'Other'};
+  const labels=Object.entries(m.labels||{}).filter(([,v])=>+v>0).map(([k,v])=>`${esc(LAB[k]||k)} ${esc(v)}`).join(' · ');
+  const acc=(m.acc||[]).map(a=>`<tr><td><b>${esc(a.name||a.id)}</b>${a.paused?'<span class="badge-p">paused</span>':''}</td><td>${esc(String(a.phase||'').replace(/_/g,' '))}</td><td>${esc(n(a.inv))} / ${esc(n(a.inv_cap))}</td><td>${esc(n(a.wk))} / ${esc(n(a.wk_cap))}</td><td>${esc(n(a.pend))}</td><td>${esc(n(a.msg))} / ${esc(n(a.msg_cap))}</td><td>${a.acc_rate!=null?esc(a.acc_rate)+'%':'–'}</td></tr>`).join('');
+  const stale=liStale(m);
+  return `<div class="viz"><div class="vt">Today${m.test?' · test data':''}</div><div class="mgrid">${K.map(k=>tile(t[k],LI_NAMES[k])).join('')}</div></div>
+  <div class="viz"><div class="vt">Last 7 days${d.d&&d.d.length?' · '+esc(d.d[0])+' to '+esc(d.d[d.d.length-1]):''}</div><div class="mgrid">${K.map(k=>tile(w[k],LI_NAMES[k],spark(k))).join('')}${tile(pct(w.acc_rate),'Acceptance rate')}${tile(pct(w.rep_rate),'Reply rate')}</div></div>
+  <div class="viz"><div class="vt">Pipeline now</div><div class="mgrid">${tile(p.queued,'Queued to send')}${tile(p.pending,'Pending invites')}${tile(p.in_seq,'In follow-up sequence')}${tile(p.open_replies,'Replies waiting for you')}${tile(p.interested,'Interested')}${tile(p.won,'Won')}${tile(p.dnc,'Do not contact')}</div></div>
+  ${acc?`<div class="viz"><div class="vt">Per account</div><div class="tscroll"><table class="acct"><thead><tr><th>Account</th><th>Phase</th><th>Invites today</th><th>7 days</th><th>Pending</th><th>Follow-ups today</th><th>Accept rate</th></tr></thead><tbody>${acc}</tbody></table></div></div>`:''}
+  <div class="viz"><div class="vt">Reply types this week</div><p class="vnote" style="margin:0">${labels||'No replies yet this week'}</p></div>
+  <div class="viz"><div class="vt">Costs</div><div class="mgrid">${tile(n(c.apollo_today)+' / '+n(c.apollo_cap),'Apollo credits today')}${tile((c.apify_month_usd==null?'–':'$'+c.apify_month_usd)+' / '+(c.apify_budget_usd==null?'–':'$'+c.apify_budget_usd),'Apify this month')}</div></div>
+  <div class="viz"><div class="vt">Health</div><p class="vnote" style="margin:0">Last update ${m.updated?esc(ago(m.updated)):'unknown'}${m.worker_seen?' · worker last ran '+esc(ago(m.worker_seen)):''}</p>${stale?'<p class="warnline">LinkedIn worker offline? No update for over 2 hours.</p>':''}${(m.errors||[]).length?`<p class="warnline">Failed today: ${esc(m.errors.join(', '))}</p>`:''}</div>`;
+}
 function renderDetail(){
   const s=detailId&&(data.systems||[]).find(x=>x.id===detailId);
   const on=!!s;$('#detail').hidden=!on;$('#panels').classList.toggle('hide',on);$('#cols').classList.toggle('hide',on);
@@ -349,7 +386,7 @@ function renderDetail(){
   $('#detail').innerHTML=`<button class="refresh back" id="back">← All automations</button>
     <article class="sys-card"><header><b>${esc(s.name)}</b><span><span class="pill ${esc(s.status)}">${stLabel(s.status)}</span> · ${s.last_run?'last run '+ago(s.last_run):'no runs yet'}</span></header>
     ${s.detail?`<p class="vnote" style="margin:0 0 12px">${esc(s.detail)}</p>`:''}
-    <div class="kpis">${(s.kpis||[]).map(k=>`<div class="kpi"><div class="v">${esc(k.value)}</div><div class="l">${esc(k.label)}</div>${k.delta?`<div class="d ${(k.good!=null?k.good:!String(k.delta).startsWith('-'))?'up':'down'}">${esc(k.delta)}</div>`:''}</div>`).join('')||'<div class="kpi"><div class="l">No numbers reported yet</div></div>'}</div>${extraViz(s)}</article>
+    ${s.metrics?liMetricsHTML(s.metrics):`<div class="kpis">${(s.kpis||[]).map(k=>`<div class="kpi"><div class="v">${esc(k.value)}</div><div class="l">${esc(k.label)}</div>${k.delta?`<div class="d ${(k.good!=null?k.good:!String(k.delta).startsWith('-'))?'up':'down'}">${esc(k.delta)}</div>`:''}</div>`).join('')||'<div class="kpi"><div class="l">No numbers reported yet</div></div>'}</div>`}${extraViz(s)}</article>
     <h2>Needs you</h2>${its.length?its.map(itemHTML).join(''):'<div class="empty"><strong>Nothing needs you here</strong>This automation is running on its own.</div>'}`;
   $('#back').onclick=()=>{detailId=null;renderDetail()};
   bindActs($('#detail'));
@@ -400,6 +437,7 @@ const SOUND_FILES={linkedin:'linkedin_post_approval.mp3',email_reply:'New_email_
 function soundFor(i){
   if(i.kind==='error')return'failure';
   if(i.system==='email')return i.kind==='reply'?'email_reply':i.kind==='approval'?'email_approve':i.urgency==='urgent'?'failure':'email_approve';
+  if(i.system==='lileads')return i.kind==='reply'?'email_reply':'linkedin';
   if(i.system==='linkedin')return /fail/i.test(i.title||'')?'failure':'linkedin';
   if(i.system==='bids')return'bidding';
   if(i.system==='seo')return'seo';
@@ -540,11 +578,12 @@ function demo(op,extra){
   return Promise.resolve({generated_at:t(1),
     systems:[
       {id:'email',name:'Cold email',status:'down',detail:'Sending paused',last_run:t(18),history:hist({13:'down'}),kpis:[{label:'Sent, 24h',value:4},{label:'Sent, last 7 days',value:61},{label:'Reply rate',value:'2.2%'},{label:'Bounce rate',value:'4%'},{label:'Approved, waiting to send',value:81}]},
-      {id:'lileads',name:'LinkedIn Leads',status:'warn',detail:'1 account(s) paused',last_run:t(40),history:hist({13:'warn'}),kpis:[{label:'Need you',value:1},{label:'Accounts paused',value:1},{label:'Last report',value:'none yet'}]},
+      {id:'lileads',name:'LinkedIn Leads',status:'warn',last_run:t(40),history:hist({13:'warn'}),metrics:Object.assign({"v":1,"updated":"2026-10-28T12:16+05:00","worker_seen":"2026-10-28T12:17+05:00","today":{"inv":0,"acc":0,"msg":0,"rep":0,"found":69,"qual":18},"days":{"d":["10-22","10-23","10-24","10-25","10-26","10-27","10-28"],"inv":[0,0,0,0,0,4,0],"acc":[0,0,0,0,0,0,0],"msg":[0,0,0,0,0,0,0],"rep":[0,0,0,0,0,0,0],"found":[0,0,0,0,10,58,69],"qual":[0,0,0,0,9,23,18]},"week":{"inv":4,"acc":0,"msg":0,"rep":0,"found":137,"qual":50,"acc_rate":null,"rep_rate":null},"labels":{},"pipe":{"queued":29,"pending":4,"in_seq":0,"open_replies":0,"interested":0,"won":0,"dnc":0},"acc":[{"id":"A","name":"Talha Kaleem","phase":"active","paused":false,"inv":0,"inv_cap":10,"wk":2,"wk_cap":60,"pend":2,"msg":0,"msg_cap":30},{"id":"B","name":"Muhammad Awais","phase":"active","paused":false,"inv":0,"inv_cap":5,"wk":2,"wk_cap":30,"pend":2,"msg":0,"msg_cap":15},{"id":"C","name":"Muhammad Najaf","phase":"warmup_manual","paused":false,"inv":0,"inv_cap":0,"wk":0,"wk_cap":0,"pend":0,"msg":0,"msg_cap":0}],"cost":{"apollo_today":40,"apollo_cap":40,"apify_month_usd":null,"apify_budget_usd":4.5},"errors":[]},{updated:t(20)}),kpis:[{label:'Invites today',value:0},{label:'Replies, 7 days',value:0},{label:'Accept rate, 7 days',value:'–'},{label:'Leads found today',value:69}]},
       {id:'seo',name:'Website SEO',status:'warn',last_run:t(300),history:hist({11:'warn',13:'warn'}),kpis:[{label:'Clicks, 7 days',value:318,delta:'+9%'},{label:'Avg position',value:'21.4',delta:'-1.2'},{label:'Posts published',value:2}]},
       {id:'bids',name:'Bid Desk',status:'ok',last_run:t(4),history:hist([]),kpis:[{label:'Hard calls today',value:3},{label:'Jobs screened',value:37}]},
       {id:'linkedin',name:'LinkedIn',status:'ok',last_run:t(1440),history:hist({6:'down'}),kpis:[{label:'Posts queued',value:2}]}],
     items:[
+      {id:'ev:lileads:reply:L1:1',system:'lileads',kind:'reply',urgency:'urgent',status:'open',created_at:t(8),title:'Reply from Sara Ahmed (Head of Marketing, Lumio Audio)',body:'Their message:\n"Thanks for reaching out, can you share pricing for a 30s product animation?"\n\nSuggested reply:\nHi Sara, happy to. A 30-second CGI product animation usually starts at…',actions:[],link:'https://www.linkedin.com/messaging/'},
       {id:'email:warn:x',system:'email',kind:'alert',urgency:'urgent',status:'open',created_at:t(150),title:'Sending paused: 2 of the last 50 emails bounced (4%, limit 3%). Verify the queued addresses, then set BOUNCE_PAUSE_OVERRIDE to YES to resume.',body:'',actions:[{id:'fix:email_bounce_resume',label:'Fix and resume',style:'primary',done:'Fixed',confirm:'Resume sending at 12 emails a day? The bounce brake turns itself back on if another email bounces.'},{id:'claude',label:'Fix with Claude',url:'https://claude.ai/new?q=demo'}]},
       {id:'ev:lileads:acct:A',system:'lileads',kind:'error',urgency:'urgent',status:'open',created_at:t(40),title:'Account A paused: circuit breaker: 2 failed actions in a row (last: profile top card not found)',body:'reason: circuit breaker: 2 failed actions in a row (last: profile top card not found (page layout changed? check config/selectors.yaml))',actions:[{id:'claude',label:'Fix with Claude',url:'https://claude.ai/new?q=demo'}]},
       {id:1,system:'email',kind:'reply',urgency:'urgent',status:'open',created_at:t(35),title:'Hot reply from a skincare brand',body:'“Can you send pricing for 6 product renders? We launch in November.”',actions:[],link:'https://mail.google.com'},
