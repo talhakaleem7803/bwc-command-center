@@ -107,9 +107,42 @@ nav.tabs .badge{position:absolute;top:2px;right:6px;background:var(--red);color:
 .hrow em{grid-column:1/-1;display:block;height:6px;border-radius:3px;background:var(--cyan);opacity:.8}
 .vnote{font-size:13px;color:var(--muted);margin:12px 0 0}
 .fixes{margin:0;padding-left:18px;font-size:13px}.fixes time{color:var(--muted);margin-right:6px}
+
+/* Home: one rounded square per automation */
+.panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:26px}
+@media (min-width:720px){.panels{grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:14px}}
+.panel{position:relative;aspect-ratio:1/1;display:flex;flex-direction:column;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:15px;cursor:pointer;min-width:0;transition:border-color .15s,transform .15s}
+.panel:hover{border-color:var(--slate);transform:translateY(-1px)}
+.panel.warn{border-color:color-mix(in srgb,var(--gold) 55%,var(--line))}
+.panel.down{border-color:color-mix(in srgb,var(--red) 65%,var(--line))}
+.p-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.p-top b{font:600 15.5px/1.2 var(--display);letter-spacing:-.01em}
+.pill{font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap;color:var(--cyan);background:color-mix(in srgb,var(--cyan) 16%,transparent)}
+.pill.warn{color:var(--gold);background:color-mix(in srgb,var(--gold) 16%,transparent)}
+.pill.down{color:var(--red);background:color-mix(in srgb,var(--red) 16%,transparent)}
+.panel .ticks{height:6px;gap:2px}
+.p-big .v{font:700 clamp(28px,7.5vw,42px)/1 var(--display);letter-spacing:-.02em;overflow-wrap:anywhere}
+.p-big .l{font-size:12.5px;color:var(--muted);margin-top:3px}
+.p-kpis{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:12px;color:var(--muted)}
+.p-kpis b{display:block;color:var(--text);font:600 15px/1.2 var(--body);overflow-wrap:anywhere}
+.p-foot{margin-top:auto;font-size:12.5px;color:var(--muted)}
+.p-issue{margin-top:auto;border-top:1px solid var(--line);padding-top:9px;font-size:13px}
+.p-issue .n{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--gold)}
+.panel.down .p-issue .n{color:var(--red)}
+.p-issue .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--text);margin-top:2px}
+.p-issue .acts{margin-top:8px;gap:6px}
+.p-issue.has-acts .t{-webkit-line-clamp:1}.p-issue .btn{padding:6px 11px;font-size:13px}
+@media (max-width:719px){.panel{padding:13px;gap:7px}.panel .p-kpis,.panel .p-issue .acts{display:none}}
+.btn.claude{border-color:color-mix(in srgb,var(--cyan) 60%,var(--line));color:var(--cyan)}
+.detail[hidden]{display:none}
+.hide{display:none!important}
+@media (max-width:919px){body:not([data-v="inbox"]) #panels{display:none}}
+.detail .back{margin-bottom:14px}
+.detail .sys-card{border-radius:20px;padding:18px}
+.detail h2{margin-top:22px}
 </style>
 </head>
-<body>
+<body data-v="inbox">
 <div class="wrap">
   <header class="top">
     <div class="count" id="count" aria-live="polite">–<small>Loading…</small></div>
@@ -124,24 +157,19 @@ nav.tabs .badge{position:absolute;top:2px;right:6px;background:var(--red);color:
     <button class="btn primary" id="pushOn">Turn on alerts</button>
   </div>
 
-  <section class="pulse" id="pulse" aria-label="System health, last 14 days"></section>
+  <section class="panels" id="panels" aria-label="Your automations"></section>
+  <section class="detail" id="detail" hidden></section>
 
-  <div class="cols">
+  <div class="cols" id="cols">
     <section class="view on" id="v-inbox">
       <h2>Needs you</h2>
       <div class="filters" id="filters"></div>
       <div id="items"></div>
     </section>
-    <div>
-      <section class="view" id="v-systems">
-        <h2>Numbers</h2>
-        <div id="systems"></div>
-      </section>
-      <section class="view" id="v-log" style="margin-top:22px">
-        <h2>Recent activity</h2>
-        <ul class="log" id="log"></ul>
-      </section>
-    </div>
+    <section class="view" id="v-log">
+      <h2>Recent activity</h2>
+      <ul class="log" id="log"></ul>
+    </section>
   </div>
 
   <section class="settings" id="v-setup" hidden style="max-width:520px">
@@ -182,8 +210,7 @@ nav.tabs .badge{position:absolute;top:2px;right:6px;background:var(--red);color:
 </div>
 
 <nav class="tabs" aria-label="Sections">
-  <button data-v="inbox" aria-current="page">Needs you<span class="badge" id="navBadge" hidden></span></button>
-  <button data-v="systems">Numbers</button>
+  <button data-v="inbox" aria-current="page">Home<span class="badge" id="navBadge" hidden></span></button>
   <button data-v="log">Activity</button>
   <button data-v="settings">Settings</button>
 </nav>
@@ -197,7 +224,10 @@ let base=store.get('hub.base',DEFAULT_BASE), key=store.get('hub.key',''), data=n
 const DEMO=new URLSearchParams(location.search).has('demo')||location.protocol==='file:';
 const IN_APP=new URLSearchParams(location.search).get('app')==='biddesk';
 if(store.get('hub.base','').includes('/webhook')===false)store.set('hub.base',DEFAULT_BASE);
-const SYS={email:'Cold email',seo:'Website SEO',bids:'Bid Desk',linkedin:'LinkedIn',system:'System'};
+const SYS={email:'Cold email',seo:'Website SEO',bids:'Bid Desk',linkedin:'LinkedIn posts',lileads:'LinkedIn Leads',system:'System'};
+/* Which numbers each panel puts first (by KPI label); other systems use their first numbers. */
+const PICK={email:['Sent, last 7 days','Reply rate','Bounce rate','Approved, waiting to send'],lileads:['Need you','Accounts paused']};
+let detailId=null;
 
 function ago(ts){const m=Math.round((Date.now()-new Date(ts))/60000);if(m<1)return'just now';if(m<60)return m+'m ago';const h=Math.round(m/60);if(h<48)return h+'h ago';return Math.round(h/24)+'d ago'}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -236,19 +266,13 @@ function render(){
   if('setAppBadge' in navigator){n?navigator.setAppBadge(n).catch(()=>{}):navigator.clearAppBadge().catch(()=>{})}
   try{afterRender(open)}catch(e){}
 
-  $('#pulse').innerHTML=(data.systems||[]).map(s=>`<button class="lane" data-sys="${esc(s.id)}" aria-label="${esc(s.name)}: ${esc(s.status)}">
-    <b>${esc(s.name)}</b>
-    <span class="ticks">${(s.history||[]).slice(-14).map(h=>`<i class="${esc(h)}"></i>`).join('')}</span>
-    <span class="st ${esc(s.status)}">${s.status==='ok'?'Running':s.status==='warn'?'Check':'Down'}</span></button>`).join('');
-  document.querySelectorAll('.lane').forEach(l=>l.onclick=()=>{filter=l.dataset.sys;show('inbox');renderItems()});
+  renderPanels(open);
 
   const systems=[...new Set(open.map(i=>i.system))];
   $('#filters').innerHTML=['all',...systems].map(s=>`<button class="chip" data-f="${s}" aria-pressed="${filter===s}">${s==='all'?'All':esc(SYS[s]||s)}</button>`).join('');
   document.querySelectorAll('.chip').forEach(ch=>ch.onclick=()=>{filter=ch.dataset.f;render()});
   renderItems();
-
-  $('#systems').innerHTML=(data.systems||[]).map(s=>`<article class="sys-card"><header><b>${esc(s.name)}</b><span>Last run ${s.last_run?ago(s.last_run):'—'}</span></header>
-    <div class="kpis">${(s.kpis||[]).map(k=>`<div class="kpi"><div class="v">${esc(k.value)}</div><div class="l">${esc(k.label)}</div>${k.delta?`<div class="d ${(k.good!=null?k.good:!String(k.delta).startsWith('-'))?'up':'down'}">${esc(k.delta)}</div>`:''}</div>`).join('')||'<div class="kpi"><div class="l">No numbers reported yet</div></div>'}</div>${extraViz(s)}</article>`).join('');
+  renderDetail();
 
   $('#log').innerHTML=(data.log||[]).slice(0,30).map(l=>`<li><time>${ago(l.at)}</time><span><b>${esc(SYS[l.system]||l.system)}</b> ${esc(l.text)}</span></li>`).join('')||'<li>No activity yet.</li>';
 }
@@ -263,19 +287,72 @@ function extraViz(s){
   if(s.fixes&&s.fixes.length)h+=`<div class="viz"><div class="vt">Fixed automatically</div><ul class="fixes">${s.fixes.slice(0,8).map(f=>`<li><time>${ago(f.at)}</time> ${esc(f.text)}</li>`).join('')}</ul></div>`;
   return h;
 }
-function renderItems(){
-  const order={urgent:0,normal:1,low:2};
-  const items=(data.items||[]).filter(i=>i.status==='open'&&(filter==='all'||i.system===filter)).sort((a,b)=>order[a.urgency]-order[b.urgency]||new Date(b.created_at)-new Date(a.created_at));
-  $('#items').innerHTML=items.length?items.map(i=>`<article class="item ${esc(i.urgency)}" id="it-${esc(i.id)}">
+const ORDER_U={urgent:0,normal:1,low:2};
+const byUrgency=(a,b)=>ORDER_U[a.urgency]-ORDER_U[b.urgency]||new Date(b.created_at)-new Date(a.created_at);
+const stLabel=s=>s==='ok'?'Running':s==='warn'?'Check':'Down';
+/* A button for each action. Actions with a url (e.g. "Fix with Claude") open it; the rest go to the hub. */
+function actBtns(i,small){
+  return (i.actions||[]).map(a=>a.url
+    ?`<a class="btn claude ${esc(a.style||'')}" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.label)}</a>`
+    :`<button class="btn ${esc(a.style||'')}" data-id="${esc(i.id)}" data-a="${esc(a.id)}" data-label="${esc(a.done||a.label)}"${a.confirm?` data-confirm="${esc(a.confirm)}"`:''}>${esc(a.label)}</button>`).join('');
+}
+function itemHTML(i){
+  return `<article class="item ${esc(i.urgency)}" id="it-${esc(i.id)}">
     <div class="meta"><span class="sys">${esc(SYS[i.system]||i.system)}</span><span>${ago(i.created_at)}</span>${i.urgency==='urgent'?'<span style="color:var(--red)">Urgent</span>':''}</div>
     <h3>${esc(i.title)}</h3>${i.body?`<p class="${i.body.length>320?'clamp':''}">${esc(i.body)}</p>${i.body.length>320?'<button class="more">Show all</button>':''}`:''}
-    <div class="acts">${(i.actions||[]).map(a=>`<button class="btn ${esc(a.style||'')}" data-id="${esc(i.id)}" data-a="${esc(a.id)}" data-label="${esc(a.done||a.label)}">${esc(a.label)}</button>`).join('')}
+    <div class="acts">${actBtns(i)}
     ${i.system==='bids'&&MODE==='android'?`<button class="btn" onclick="native('openBidDesk').catch(e=>toast(e.message))">Open Bid Desk</button>`:''}
     ${i.link?`<a class="btn" href="${esc(i.link)}" target="_blank" rel="noopener">Open</a>`:''}
-    <button class="btn" data-id="${esc(i.id)}" data-a="dismiss" data-label="Dismissed">Dismiss</button></div></article>`).join('')
+    <button class="btn" data-id="${esc(i.id)}" data-a="dismiss" data-label="Dismissed">Dismiss</button></div></article>`;
+}
+function bindActs(root){
+  root.querySelectorAll('.btn[data-a]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();act(btn)});
+  root.querySelectorAll('a.btn').forEach(a=>a.addEventListener('click',e=>e.stopPropagation()));
+  root.querySelectorAll('.more').forEach(b=>b.onclick=e=>{e.stopPropagation();const p=b.previousElementSibling;const o=p.classList.toggle('clamp');b.textContent=o?'Show all':'Show less'});
+}
+function renderItems(){
+  const items=(data.items||[]).filter(i=>i.status==='open'&&(filter==='all'||i.system===filter)).sort(byUrgency);
+  $('#items').innerHTML=items.length?items.map(itemHTML).join('')
     :`<div class="empty"><strong>${filter==='all'?'Nothing needs you':'Nothing here'}</strong>${filter==='all'?'Your automations are running on their own. The daily digest lands at 9:00.':'This system has nothing waiting. <button class="link" onclick="filter=\'all\';render()">Show all</button>'}</div>`;
-  document.querySelectorAll('.acts .btn[data-a]').forEach(btn=>btn.onclick=()=>act(btn));
-  document.querySelectorAll('.more').forEach(b=>b.onclick=()=>{const p=b.previousElementSibling;const open=p.classList.toggle('clamp');b.textContent=open?'Show all':'Show less'});
+  bindActs($('#items'));
+}
+function pickKpis(s){
+  const ks=(s.kpis||[]).filter(k=>k&&k.value!==''&&k.value!=null);
+  const want=PICK[s.id]||[];
+  const first=want.map(l=>ks.find(k=>k.label===l)).filter(Boolean);
+  return [...first,...ks.filter(k=>!first.includes(k))];
+}
+function renderPanels(open){
+  $('#panels').innerHTML=(data.systems||[]).map(s=>{
+    const pr=i=>(i.actions||[]).some(a=>String(a.id).startsWith('fix:'))?0:(i.actions||[]).some(a=>a.url)?1:2;
+    const its=open.filter(i=>i.system===s.id).sort((a,b)=>pr(a)-pr(b)||byUrgency(a,b)), top=its[0];
+    const ks=pickKpis(s), big=ks[0], small=ks.slice(1,3).filter(k=>String(k.value).length<=14);
+    return `<article class="panel ${esc(s.status)}" data-sys="${esc(s.id)}" tabindex="0" role="button" aria-label="${esc(s.name)}: ${stLabel(s.status)}${its.length?', '+its.length+' need you':''}">
+      <div class="p-top"><b>${esc(s.name)}</b><span class="pill ${esc(s.status)}">${stLabel(s.status)}</span></div>
+      <span class="ticks" aria-hidden="true">${(s.history||[]).slice(-14).map(h=>`<i class="${esc(h)}"></i>`).join('')}</span>
+      ${big?`<div class="p-big"><div class="v">${esc(big.value)}</div><div class="l">${esc(big.label)}</div></div>`:'<div class="p-big"><div class="l">No numbers reported yet</div></div>'}
+      ${small.length?`<div class="p-kpis">${small.map(k=>`<div><b>${esc(k.value)}</b>${esc(k.label)}</div>`).join('')}</div>`:''}
+      ${top?`<div class="p-issue${(top.actions||[]).length?' has-acts':''}"><div class="n">${its.length===1?'1 needs you':its.length+' need you'}</div><div class="t">${esc(top.title)}</div>${(top.actions||[]).length?`<div class="acts">${actBtns(top)}</div>`:''}</div>`
+        :`<div class="p-foot">${s.last_run?'Last run '+ago(s.last_run):'Waiting for its first run'}</div>`}
+    </article>`}).join('');
+  document.querySelectorAll('.panel').forEach(p=>{
+    const go=()=>{detailId=p.dataset.sys;renderDetail();window.scrollTo({top:0})};
+    p.onclick=go;p.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}};
+  });
+  bindActs($('#panels'));
+}
+function renderDetail(){
+  const s=detailId&&(data.systems||[]).find(x=>x.id===detailId);
+  const on=!!s;$('#detail').hidden=!on;$('#panels').classList.toggle('hide',on);$('#cols').classList.toggle('hide',on);
+  if(!on){detailId=null;return}
+  const its=(data.items||[]).filter(i=>i.status==='open'&&i.system===s.id).sort(byUrgency);
+  $('#detail').innerHTML=`<button class="refresh back" id="back">← All automations</button>
+    <article class="sys-card"><header><b>${esc(s.name)}</b><span><span class="pill ${esc(s.status)}">${stLabel(s.status)}</span> · ${s.last_run?'last run '+ago(s.last_run):'no runs yet'}</span></header>
+    ${s.detail?`<p class="vnote" style="margin:0 0 12px">${esc(s.detail)}</p>`:''}
+    <div class="kpis">${(s.kpis||[]).map(k=>`<div class="kpi"><div class="v">${esc(k.value)}</div><div class="l">${esc(k.label)}</div>${k.delta?`<div class="d ${(k.good!=null?k.good:!String(k.delta).startsWith('-'))?'up':'down'}">${esc(k.delta)}</div>`:''}</div>`).join('')||'<div class="kpi"><div class="l">No numbers reported yet</div></div>'}</div>${extraViz(s)}</article>
+    <h2>Needs you</h2>${its.length?its.map(itemHTML).join(''):'<div class="empty"><strong>Nothing needs you here</strong>This automation is running on its own.</div>'}`;
+  $('#back').onclick=()=>{detailId=null;renderDetail()};
+  bindActs($('#detail'));
 }
 
 /* Push alerts through Firebase Cloud Messaging (same Firebase project as Bid Desk) */
@@ -401,7 +478,7 @@ if(MODE==='desktop'){setInterval(load,60000)}
 let pushChecked=false;
 function showSetup(){
   document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
-  $('#pulse').hidden=true;$('#v-setup').hidden=false;
+  $('#panels').hidden=true;$('#v-setup').hidden=false;
   $('#count').innerHTML='Welcome<small>One step before your automations show up here.</small>';
 }
 $('#setupSave').onclick=async()=>{
@@ -409,7 +486,7 @@ $('#setupSave').onclick=async()=>{
   if(k.length<12){$('#setupErr').textContent='Use at least 12 characters.';return}
   $('#setupErr').textContent='';
   try{const r=await api('setup',{key:k});if(r&&r.ok===false)throw new Error(r.message);
-    key=k;store.set('hub.key',k);$('#pulse').hidden=false;show('inbox');toast('Access key saved');load();
+    key=k;store.set('hub.key',k);$('#panels').hidden=false;show('inbox');toast('Access key saved');load();
   }catch(e){$('#setupErr').textContent=e.message==='auth'?'A key has already been set. Enter it in Settings instead.':e.message}
 };
 $('#newKey').oninput=()=>{$('#setupErr').textContent=''};
@@ -428,16 +505,19 @@ $('#pushSave').onclick=async()=>{
 ['fbCfg','vapid'].forEach(id=>$('#'+id).oninput=()=>{$('#pushErr').textContent=''});
 
 async function act(btn){
-  const card=btn.closest('.item');card.querySelectorAll('button').forEach(b=>b.disabled=true);
+  if(btn.dataset.confirm&&!confirm(btn.dataset.confirm))return;
+  const card=btn.closest('.item,.panel,.acts')||btn.parentElement;card.querySelectorAll('button').forEach(b=>b.disabled=true);
+  if(btn.dataset.a.startsWith('fix:'))toast('Fixing… this can take half a minute');
   try{
     const res=await api('action',{item_id:btn.dataset.id,action:btn.dataset.a});
     if(res.ok===false) throw new Error(res.message||'Failed');
     const it=data.items.find(x=>String(x.id)===btn.dataset.id); if(it) it.status='done';
     toast(res.message||btn.dataset.label); render();
-  }catch(e){card.querySelectorAll('button').forEach(b=>b.disabled=false);toast(e.message==='auth'?'Access key rejected. Check Settings.':'That didn’t go through. Try again.')}
+  }catch(e){card.querySelectorAll('button').forEach(b=>b.disabled=false);toast(e.message==='auth'?'Access key rejected. Check Settings.':e.message&&e.message!=='Failed'&&!/^HTTP|fetch/i.test(e.message)?e.message:'That didn’t go through. Try again.')}
 }
 
 function show(v){
+  document.body.dataset.v=v;if(v!=='inbox'&&detailId){detailId=null;renderDetail()}
   document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
   document.querySelectorAll('nav.tabs button').forEach(b=>b.toggleAttribute('aria-current',b.dataset.v===v)||b.dataset.v===v&&b.setAttribute('aria-current','page'));
   $('#v-settings').classList.toggle('open',v==='settings');
@@ -459,11 +539,14 @@ function demo(op,extra){
   const h=Date.now(),t=m=>new Date(h-m*60000).toISOString(),hist=(p)=>Array.from({length:14},(_,i)=>p[i]||'ok');
   return Promise.resolve({generated_at:t(1),
     systems:[
-      {id:'email',name:'Cold email',status:'ok',last_run:t(18),history:hist([]),kpis:[{label:'Sent this week',value:142,delta:'+18%'},{label:'Reply rate',value:'4.2%'},{label:'Waiting for you',value:6}]},
+      {id:'email',name:'Cold email',status:'down',detail:'Sending paused',last_run:t(18),history:hist({13:'down'}),kpis:[{label:'Sent, 24h',value:4},{label:'Sent, last 7 days',value:61},{label:'Reply rate',value:'2.2%'},{label:'Bounce rate',value:'4%'},{label:'Approved, waiting to send',value:81}]},
+      {id:'lileads',name:'LinkedIn Leads',status:'warn',detail:'1 account(s) paused',last_run:t(40),history:hist({13:'warn'}),kpis:[{label:'Need you',value:1},{label:'Accounts paused',value:1},{label:'Last report',value:'none yet'}]},
       {id:'seo',name:'Website SEO',status:'warn',last_run:t(300),history:hist({11:'warn',13:'warn'}),kpis:[{label:'Clicks, 7 days',value:318,delta:'+9%'},{label:'Avg position',value:'21.4',delta:'-1.2'},{label:'Posts published',value:2}]},
       {id:'bids',name:'Bid Desk',status:'ok',last_run:t(4),history:hist([]),kpis:[{label:'Hard calls today',value:3},{label:'Jobs screened',value:37}]},
       {id:'linkedin',name:'LinkedIn',status:'ok',last_run:t(1440),history:hist({6:'down'}),kpis:[{label:'Posts queued',value:2}]}],
     items:[
+      {id:'email:warn:x',system:'email',kind:'alert',urgency:'urgent',status:'open',created_at:t(150),title:'Sending paused: 2 of the last 50 emails bounced (4%, limit 3%). Verify the queued addresses, then set BOUNCE_PAUSE_OVERRIDE to YES to resume.',body:'',actions:[{id:'fix:email_bounce_resume',label:'Fix and resume',style:'primary',done:'Fixed',confirm:'Resume sending at 12 emails a day? The bounce brake turns itself back on if another email bounces.'},{id:'claude',label:'Fix with Claude',url:'https://claude.ai/new?q=demo'}]},
+      {id:'ev:lileads:acct:A',system:'lileads',kind:'error',urgency:'urgent',status:'open',created_at:t(40),title:'Account A paused: circuit breaker: 2 failed actions in a row (last: profile top card not found)',body:'reason: circuit breaker: 2 failed actions in a row (last: profile top card not found (page layout changed? check config/selectors.yaml))',actions:[{id:'claude',label:'Fix with Claude',url:'https://claude.ai/new?q=demo'}]},
       {id:1,system:'email',kind:'reply',urgency:'urgent',status:'open',created_at:t(35),title:'Hot reply from a skincare brand',body:'“Can you send pricing for 6 product renders? We launch in November.”',actions:[],link:'https://mail.google.com'},
       {id:2,system:'bids',kind:'alert',urgency:'urgent',status:'open',created_at:t(12),title:'Hard call: 3D product animation for a smart bottle, $1.5k',body:'Strong fit. Posted 12 minutes ago, 4 proposals so far.',actions:[],link:'https://www.upwork.com'},
       {id:3,system:'email',kind:'approval',urgency:'normal',status:'open',created_at:t(200),title:'6 first emails waiting for approval',body:'Oldest has waited 3h 20m. Sends go out at each lead’s local 10:00.',actions:[{id:'approve',label:'Approve all',style:'primary',done:'Approved'},{id:'review',label:'Review'}]},
