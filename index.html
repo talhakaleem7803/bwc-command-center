@@ -302,12 +302,13 @@ const stLabel=s=>s==='ok'?'Running':s==='warn'?'Check':'Down';
 function actBtns(i,small){
   return (i.actions||[]).map(a=>a.url
     ?`<a class="btn claude ${esc(a.style||'')}" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.label)}</a>`
-    :`<button class="btn ${esc(a.style||'')}" data-id="${esc(i.id)}" data-a="${esc(a.id)}" data-label="${esc(a.done||a.label)}"${a.confirm?` data-confirm="${esc(a.confirm)}"`:''}>${esc(a.label)}</button>`).join('');
+    :a.disabled?`<button class="btn" disabled>${esc(a.label)}</button>`
+    :`<button class="btn ${esc(a.style||'')}" data-id="${esc(i.id)}" data-a="${esc(a.id)}" data-label="${esc(a.done||a.label)}"${a.confirm?` data-confirm="${esc(a.confirm)}"`:''}${a.send?` data-send="${esc(JSON.stringify(a.send))}"`:''}>${esc(a.label)}</button>`).join('');
 }
 function itemHTML(i){
   return `<article class="item ${esc(i.urgency)}" id="it-${esc(i.id)}">
     <div class="meta"><span class="sys">${esc(SYS[i.system]||i.system)}</span><span>${ago(i.created_at)}</span>${i.urgency==='urgent'?'<span style="color:var(--red)">Urgent</span>':''}</div>
-    <h3>${esc(i.title)}</h3>${i.body?`<p class="${i.body.length>320?'clamp':''}">${esc(i.body)}</p>${i.body.length>320?'<button class="more">Show all</button>':''}`:''}
+    <h3>${esc(i.title)}</h3>${i.note?`<p class="vnote" style="margin:0 0 6px;color:var(--text)">${esc(i.note)}</p>`:''}${i.body?`<p class="${i.body.length>320?'clamp':''}">${esc(i.body)}</p>${i.body.length>320?'<button class="more">Show all</button>':''}`:''}
     <div class="acts">${actBtns(i)}
     ${/Suggested reply:/i.test(i.body||'')?`<button class="btn primary copy" data-copy="${esc(i.id)}">Copy reply</button>`:''}
     ${i.system==='bids'&&MODE==='android'?`<button class="btn" onclick="native('openBidDesk').catch(e=>toast(e.message))">Open Bid Desk</button>`:''}
@@ -547,8 +548,12 @@ async function act(btn){
   const card=btn.closest('.item,.panel,.acts')||btn.parentElement;card.querySelectorAll('button').forEach(b=>b.disabled=true);
   if(btn.dataset.a.startsWith('fix:'))toast('Fixing… this can take half a minute');
   try{
-    const res=await api('action',{item_id:btn.dataset.id,action:btn.dataset.a});
+    let extra={};try{extra=btn.dataset.send?JSON.parse(btn.dataset.send):{}}catch(e){}
+    const res=await api('action',Object.assign({item_id:btn.dataset.id,action:btn.dataset.a},extra));
     if(res.ok===false) throw new Error(res.message||'Failed');
+    if(btn.dataset.a.startsWith('cmd:')){const it=data.items.find(x=>String(x.id)===btn.dataset.id);
+      if(it){it.actions=(it.actions||[]).map(a=>a.id===btn.dataset.a?{id:'cmd:busy',label:'Fixing… (up to ~20 min)',disabled:true}:a);delete it.note}
+      toast(res.message||'Fixing…');render();return}
     const it=data.items.find(x=>String(x.id)===btn.dataset.id); if(it) it.status='done';
     toast(res.message||btn.dataset.label); render();
   }catch(e){card.querySelectorAll('button').forEach(b=>b.disabled=false);toast(e.message==='auth'?'Access key rejected. Check Settings.':e.message&&e.message!=='Failed'&&!/^HTTP|fetch/i.test(e.message)?e.message:'That didn’t go through. Try again.')}
@@ -585,7 +590,7 @@ function demo(op,extra){
     items:[
       {id:'ev:lileads:reply:L1:1',system:'lileads',kind:'reply',urgency:'urgent',status:'open',created_at:t(8),title:'Reply from Sara Ahmed (Head of Marketing, Lumio Audio)',body:'Their message:\n"Thanks for reaching out, can you share pricing for a 30s product animation?"\n\nSuggested reply:\nHi Sara, happy to. A 30-second CGI product animation usually starts at…',actions:[],link:'https://www.linkedin.com/messaging/'},
       {id:'email:warn:x',system:'email',kind:'alert',urgency:'urgent',status:'open',created_at:t(150),title:'Sending paused: 2 of the last 50 emails bounced (4%, limit 3%). Verify the queued addresses, then set BOUNCE_PAUSE_OVERRIDE to YES to resume.',body:'',actions:[{id:'fix:email_bounce_resume',label:'Fix and resume',style:'primary',done:'Fixed',confirm:'Resume sending at 12 emails a day? The bounce brake turns itself back on if another email bounces.'},{id:'claude',label:'Fix with Claude',url:'https://claude.ai/new?q=demo'}]},
-      {id:'ev:lileads:acct:A',system:'lileads',kind:'error',urgency:'urgent',status:'open',created_at:t(40),title:'Account A paused: circuit breaker: 2 failed actions in a row (last: profile top card not found)',body:'reason: circuit breaker: 2 failed actions in a row (last: profile top card not found (page layout changed? check config/selectors.yaml))',actions:[{id:'claude',label:'Fix with Claude',url:'https://claude.ai/new?q=demo'}]},
+      {id:'ev:lileads:acct:A',system:'lileads',kind:'error',urgency:'urgent',status:'open',created_at:t(40),title:'Account A paused: circuit breaker: 2 failed actions in a row (last: profile top card not found)',note:'Last fix failed: tests did not pass after the selector update',body:'reason: circuit breaker: 2 failed actions in a row (last: profile top card not found (page layout changed? check config/selectors.yaml))',actions:[{id:'cmd:fix',label:'Fix with Claude',style:'primary',done:'Fixing…',send:{title:'t',body:'b'}}]},
       {id:1,system:'email',kind:'reply',urgency:'urgent',status:'open',created_at:t(35),title:'Hot reply from a skincare brand',body:'“Can you send pricing for 6 product renders? We launch in November.”',actions:[],link:'https://mail.google.com'},
       {id:2,system:'bids',kind:'alert',urgency:'urgent',status:'open',created_at:t(12),title:'Hard call: 3D product animation for a smart bottle, $1.5k',body:'Strong fit. Posted 12 minutes ago, 4 proposals so far.',actions:[],link:'https://www.upwork.com'},
       {id:3,system:'email',kind:'approval',urgency:'normal',status:'open',created_at:t(200),title:'6 first emails waiting for approval',body:'Oldest has waited 3h 20m. Sends go out at each lead’s local 10:00.',actions:[{id:'approve',label:'Approve all',style:'primary',done:'Approved'},{id:'review',label:'Review'}]},
