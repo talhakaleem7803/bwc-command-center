@@ -482,7 +482,7 @@ function stopAlarm(){if(alarmAudio){alarmAudio.pause();alarmAudio=null}}
 ['click','keydown'].forEach(ev=>document.addEventListener(ev,stopAlarm,{capture:true}));
 if('serviceWorker' in navigator&&MODE==='web') navigator.serviceWorker.addEventListener('message',ev=>{
   const m=ev.data||{}; if(m.type!=='hub-alarm')return;
-  playAlarm(m.sound||m.kind); if(!document.hidden){toast(m.title||'Something needs you');load()}
+  if(alarmOn(m.sound||m.kind))playAlarm(m.sound||m.kind); if(!document.hidden){toast(m.title||'Something needs you');load()}
 });
 $('#soundList').innerHTML=SOUND_KEYS.map(([k,l])=>`<button class="btn" data-snd="${k}">▶ ${esc(l)}</button>`).join('');
 document.querySelectorAll('[data-snd]').forEach(b=>b.onclick=e=>{e.stopPropagation();playAlarm(b.dataset.snd);if(MODE==='desktop')window.ccDesktop.notify({title:'Test: '+b.textContent.slice(2),body:'This is how this alert sounds on your laptop.',sound:b.dataset.snd,test:true})});
@@ -500,6 +500,8 @@ async function registerNative(force){
   }catch(e){if(force)toast('Couldn’t register this phone: '+e.message)}
 }
 /* Windows app: watch for new items and ring with the right voice. */
+/* Alarms are opt-in: only kinds listed in the hub's ALARM_SOUNDS setting ring (sent as data.alarm_sounds). */
+const alarmOn=snd=>!!(data&&Array.isArray(data.alarm_sounds)&&data.alarm_sounds.includes(snd));
 function desktopWatch(open){
   let seen={};try{seen=JSON.parse(store.get('hub.alerted','{}'))}catch(e){}
   const first=!store.get('hub.alerted','');
@@ -510,12 +512,12 @@ function desktopWatch(open){
   if(!first&&fresh.length){
     const rank=['failure','email_reply','bidding','linkedin','email_approve','seo'];
     fresh.sort((a,b)=>rank.indexOf(soundFor(a))-rank.indexOf(soundFor(b)));
-    const loud=fresh.filter(i=>!quietNow()||soundFor(i)==='failure');
+    const loud=fresh.filter(i=>(!quietNow()||soundFor(i)==='failure')&&alarmOn(soundFor(i)));
     if(loud.length){const t=loud[0],snd=soundFor(t);playAlarm(snd);
       window.ccDesktop.notify({title:loud.length===1?t.title:loud.length+' things need you',body:loud.length===1?String(t.body||'').slice(0,200):loud.slice(0,4).map(i=>'• '+i.title).join('\n'),sound:snd,urgent:snd==='failure'||snd==='email_reply'})}
   }
   const h=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Karachi',hour:'2-digit',hour12:false}).format(new Date()));
-  if(h>=9&&h<12&&store.get('hub.daily','')!==todayPk()){store.set('hub.daily',todayPk());if(!first){playAlarm('daily_report');window.ccDesktop.notify({title:'Daily report ready',body:open.length?open.length+' things need you today':'All clear: nothing needs you today',sound:'daily_report'})}}
+  if(h>=9&&h<12&&store.get('hub.daily','')!==todayPk()){store.set('hub.daily',todayPk());if(!first&&alarmOn('daily_report')){playAlarm('daily_report');window.ccDesktop.notify({title:'Daily report ready',body:open.length?open.length+' things need you today':'All clear: nothing needs you today',sound:'daily_report'})}}
 }
 function afterRender(open){
   if(MODE==='android'&&key)registerNative(false);
