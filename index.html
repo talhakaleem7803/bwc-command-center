@@ -147,6 +147,14 @@ nav.tabs .badge{position:absolute;top:2px;right:6px;background:var(--red);color:
 .acct{width:100%;border-collapse:collapse;font-size:13px}.acct th{text-align:left;font-weight:500;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}.acct td{padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
 .tscroll{overflow-x:auto}
 .badge-p{font-size:11px;font-weight:600;color:var(--red);background:color-mix(in srgb,var(--red) 16%,transparent);border-radius:999px;padding:1px 7px;margin-left:6px}
+.today-box{border:1px solid color-mix(in srgb,var(--cyan) 55%,var(--line));background:color-mix(in srgb,var(--cyan) 9%,transparent);border-radius:14px;padding:12px 14px;margin-bottom:6px}
+.today-box .awake{font:600 16px/1.3 var(--display);color:var(--cyan)}.today-box.none .awake{color:var(--muted);font-weight:500}
+.due{list-style:none;margin:8px 0 0;padding:0;font-size:13.5px}.due li{padding:3px 0}
+.msgs{list-style:none;margin:0;padding:0}.msgs li{border-bottom:1px solid var(--line);padding:10px 0}
+.msgs .mh{display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;font-size:12.5px;color:var(--muted)}.msgs .mh b{color:var(--text);font-size:14px}
+.msgs p{margin:4px 0 0;font-size:13.5px;white-space:pre-line}.msgs p.clamp2{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.msgs .rep{border-left:3px solid var(--green);padding-left:9px;margin-top:6px;color:var(--text)}
+.badge-r{font-size:11px;font-weight:600;color:var(--green);background:color-mix(in srgb,var(--green) 16%,transparent);border-radius:999px;padding:1px 7px}
 .warnline{color:var(--gold);font-size:13px;margin:8px 0 0}.panel .warnline{margin:0}
 </style>
 </head>
@@ -322,6 +330,7 @@ async function copyReply(id){
   catch(e){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('Reply copied')}catch(x){toast('Couldn’t copy. Select the text instead.')}ta.remove()}
 }
 function bindActs(root){
+  root.querySelectorAll('.msgs p.clamp2').forEach(p=>p.onclick=e=>{e.stopPropagation();p.classList.toggle('clamp2')});
   root.querySelectorAll('[data-copy]').forEach(b=>b.onclick=e=>{e.stopPropagation();copyReply(b.dataset.copy)});
   root.querySelectorAll('.btn[data-a]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();act(btn)});
   root.querySelectorAll('a.btn').forEach(a=>a.addEventListener('click',e=>e.stopPropagation()));
@@ -349,6 +358,7 @@ function renderPanels(open){
       <span class="ticks" aria-hidden="true">${(s.history||[]).slice(-14).map(h=>`<i class="${esc(h)}"></i>`).join('')}</span>
       ${big?`<div class="p-big"><div class="v">${esc(big.value)}</div><div class="l">${esc(big.label)}</div></div>`:'<div class="p-big"><div class="l">No numbers reported yet</div></div>'}
       ${small.length?`<div class="p-kpis">${small.map(k=>`<div><b>${esc(k.value)}</b>${esc(k.label)}</div>`).join('')}</div>`:''}
+      ${s.messages&&s.messages.awake&&s.messages.awake.from?`<p class="warnline" style="color:var(--cyan)">PC on ${esc(s.messages.awake.from)}–${esc(s.messages.awake.to||'')} today</p>`:''}
       ${s.metrics&&liStale(s.metrics)?'<p class="warnline">LinkedIn worker offline?</p>':''}
       ${top?`<div class="p-issue${(top.actions||[]).length?' has-acts':''}"><div class="n">${its.length===1?'1 needs you':its.length+' need you'}</div><div class="t">${esc(top.title)}</div>${(top.actions||[]).length?`<div class="acts">${actBtns(top)}</div>`:''}</div>`
         :`<div class="p-foot">${s.last_run?'Last run '+ago(s.last_run):'Waiting for its first run'}</div>`}
@@ -361,6 +371,17 @@ function renderPanels(open){
 }
 const liStale=m=>{if(!m)return false;const age=Date.now()-(Date.parse(m.updated||'')||Date.parse(m.pushed_at||'')||0);const h=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Karachi',hour:'2-digit',hour12:false}).format(new Date()));return age>7.2e6&&(h>=12||h<1)};
 const LI_NAMES={inv:'Invites sent',acc:'Accepted',msg:'Follow-ups sent',rep:'Replies',found:'Leads found',qual:'Leads qualified'};
+function liMessagesHTML(x){
+  if(!x)return'';
+  const ACC={A:'Talha',B:'Awais',C:'Najaf'};const acc=a=>a?esc(a)+(ACC[a]?' ('+ACC[a]+')':''):'';
+  const aw=x.awake&&x.awake.from?`Keep the PC on ${esc(x.awake.from)}–${esc(x.awake.to||'')} PKT`:'';
+  const due=(x.due||[]).map(d=>`<li>~${esc(d.at||'')} · ${esc(d.a||'')} · Msg ${esc(d.step||'')} · ${esc(d.to||'')}</li>`).join('');
+  const msgs=(x.msgs||[]).map(m=>{const replied=!!String(m.reply||'').trim()||/^(REPLIED|INTERESTED)$/i.test(String(m.status||''));
+    return `<li><div class="mh"><span>${esc(m.t||'')}</span><span>${acc(m.a)}</span><span>Msg ${esc(m.step||'')}</span><b>${esc(m.to||'')}</b>${replied?'<span class="badge-r">Replied</span>':''}${m.status&&!replied?`<span>${esc(String(m.status).replace(/_/g,' ').toLowerCase())}</span>`:''}</div>
+    ${m.text?`<p class="clamp2" title="Tap to expand">${esc(m.text)}</p>`:''}${String(m.reply||'').trim()?`<p class="rep">${esc(m.reply)}</p>`:''}</li>`}).join('');
+  return `<div class="today-box${aw?'':' none'}"><div class="vt" style="margin-bottom:4px">Today</div><div class="awake">${aw||'No follow-ups due today'}</div>${due?`<ul class="due">${due}</ul>`:''}</div>
+  <div class="viz"><div class="vt">Recent messages${x.test?' · test data':''}</div>${msgs?`<ul class="msgs">${msgs}</ul>`:'<p class="vnote" style="margin:0">No messages sent yet.</p>'}</div>`;
+}
 function liMetricsHTML(m){
   const n=v=>v===null||v===undefined||v===''?'–':v, pct=v=>v===null||v===undefined||v===''?'–':v+'%';
   const tile=(v,l,extra)=>`<div class="mtile"><div class="v">${esc(n(v))}</div><div class="l">${esc(l)}</div>${extra||''}</div>`;
@@ -387,7 +408,7 @@ function renderDetail(){
   $('#detail').innerHTML=`<button class="refresh back" id="back">← All automations</button>
     <article class="sys-card"><header><b>${esc(s.name)}</b><span><span class="pill ${esc(s.status)}">${stLabel(s.status)}</span> · ${s.last_run?'last run '+ago(s.last_run):'no runs yet'}</span></header>
     ${s.detail?`<p class="vnote" style="margin:0 0 12px">${esc(s.detail)}</p>`:''}
-    ${s.metrics?liMetricsHTML(s.metrics):`<div class="kpis">${(s.kpis||[]).map(k=>`<div class="kpi"><div class="v">${esc(k.value)}</div><div class="l">${esc(k.label)}</div>${k.delta?`<div class="d ${(k.good!=null?k.good:!String(k.delta).startsWith('-'))?'up':'down'}">${esc(k.delta)}</div>`:''}</div>`).join('')||'<div class="kpi"><div class="l">No numbers reported yet</div></div>'}</div>`}${extraViz(s)}</article>
+    ${s.messages?liMessagesHTML(s.messages):''}${s.metrics?liMetricsHTML(s.metrics):`<div class="kpis">${(s.kpis||[]).map(k=>`<div class="kpi"><div class="v">${esc(k.value)}</div><div class="l">${esc(k.label)}</div>${k.delta?`<div class="d ${(k.good!=null?k.good:!String(k.delta).startsWith('-'))?'up':'down'}">${esc(k.delta)}</div>`:''}</div>`).join('')||'<div class="kpi"><div class="l">No numbers reported yet</div></div>'}</div>`}${extraViz(s)}</article>
     <h2>Needs you</h2>${its.length?its.map(itemHTML).join(''):'<div class="empty"><strong>Nothing needs you here</strong>This automation is running on its own.</div>'}`;
   $('#back').onclick=()=>{detailId=null;renderDetail()};
   bindActs($('#detail'));
@@ -583,7 +604,7 @@ function demo(op,extra){
   return Promise.resolve({generated_at:t(1),
     systems:[
       {id:'email',name:'Cold email',status:'down',detail:'Sending paused',last_run:t(18),history:hist({13:'down'}),kpis:[{label:'Sent, 24h',value:4},{label:'Sent, last 7 days',value:61},{label:'Reply rate',value:'2.2%'},{label:'Bounce rate',value:'4%'},{label:'Approved, waiting to send',value:81}]},
-      {id:'lileads',name:'LinkedIn Leads',status:'warn',last_run:t(40),history:hist({13:'warn'}),metrics:Object.assign({"v":1,"updated":"2026-10-28T12:16+05:00","worker_seen":"2026-10-28T12:17+05:00","today":{"inv":0,"acc":0,"msg":0,"rep":0,"found":69,"qual":18},"days":{"d":["10-22","10-23","10-24","10-25","10-26","10-27","10-28"],"inv":[0,0,0,0,0,4,0],"acc":[0,0,0,0,0,0,0],"msg":[0,0,0,0,0,0,0],"rep":[0,0,0,0,0,0,0],"found":[0,0,0,0,10,58,69],"qual":[0,0,0,0,9,23,18]},"week":{"inv":4,"acc":0,"msg":0,"rep":0,"found":137,"qual":50,"acc_rate":null,"rep_rate":null},"labels":{},"pipe":{"queued":29,"pending":4,"in_seq":0,"open_replies":0,"interested":0,"won":0,"dnc":0},"acc":[{"id":"A","name":"Talha Kaleem","phase":"active","paused":false,"inv":0,"inv_cap":10,"wk":2,"wk_cap":60,"pend":2,"msg":0,"msg_cap":30},{"id":"B","name":"Muhammad Awais","phase":"active","paused":false,"inv":0,"inv_cap":5,"wk":2,"wk_cap":30,"pend":2,"msg":0,"msg_cap":15},{"id":"C","name":"Muhammad Najaf","phase":"warmup_manual","paused":false,"inv":0,"inv_cap":0,"wk":0,"wk_cap":0,"pend":0,"msg":0,"msg_cap":0}],"cost":{"apollo_today":40,"apollo_cap":40,"apify_month_usd":null,"apify_budget_usd":4.5},"errors":[]},{updated:t(20)}),kpis:[{label:'Invites today',value:0},{label:'Replies, 7 days',value:0},{label:'Accept rate, 7 days',value:'–'},{label:'Leads found today',value:69}]},
+      {id:'lileads',name:'LinkedIn Leads',status:'warn',last_run:t(40),history:hist({13:'warn'}),messages:{v:1,awake:{from:'17:00',to:'18:30'},due:[{at:'17:00',a:'B',step:1,to:'Kara Penfold'},{at:'17:00',a:'A',step:1,to:'Josefina Sonnerup'}],msgs:[{t:'10-30 17:29',a:'B',step:1,to:'Kara Penfold',status:'MSG_1_SENT',text:'Hi Kara,\n\nThanks for connecting. Saw your post about the OPUS Investec award and the new products you\'re getting ready to launch for childre',reply:''},{t:'10-30 17:06',a:'A',step:1,to:'Yuya Nakazawa',status:'NOT_NOW',text:'Hi Yuya,\n\nThanks for connecting. Saw that the ORUHA Chair is launching on Kickstarter in one week, with only five First Edition chairs being',reply:'Thanks for reaching out. The campaign visuals are mainly photography and are already set for the launch, so we\'re not adding 3D at this stag'}]},metrics:Object.assign({"v":1,"updated":"2026-10-28T12:16+05:00","worker_seen":"2026-10-28T12:17+05:00","today":{"inv":0,"acc":0,"msg":0,"rep":0,"found":69,"qual":18},"days":{"d":["10-22","10-23","10-24","10-25","10-26","10-27","10-28"],"inv":[0,0,0,0,0,4,0],"acc":[0,0,0,0,0,0,0],"msg":[0,0,0,0,0,0,0],"rep":[0,0,0,0,0,0,0],"found":[0,0,0,0,10,58,69],"qual":[0,0,0,0,9,23,18]},"week":{"inv":4,"acc":0,"msg":0,"rep":0,"found":137,"qual":50,"acc_rate":null,"rep_rate":null},"labels":{},"pipe":{"queued":29,"pending":4,"in_seq":0,"open_replies":0,"interested":0,"won":0,"dnc":0},"acc":[{"id":"A","name":"Talha Kaleem","phase":"active","paused":false,"inv":0,"inv_cap":10,"wk":2,"wk_cap":60,"pend":2,"msg":0,"msg_cap":30},{"id":"B","name":"Muhammad Awais","phase":"active","paused":false,"inv":0,"inv_cap":5,"wk":2,"wk_cap":30,"pend":2,"msg":0,"msg_cap":15},{"id":"C","name":"Muhammad Najaf","phase":"warmup_manual","paused":false,"inv":0,"inv_cap":0,"wk":0,"wk_cap":0,"pend":0,"msg":0,"msg_cap":0}],"cost":{"apollo_today":40,"apollo_cap":40,"apify_month_usd":null,"apify_budget_usd":4.5},"errors":[]},{updated:t(20)}),kpis:[{label:'Invites today',value:0},{label:'Replies, 7 days',value:0},{label:'Accept rate, 7 days',value:'–'},{label:'Leads found today',value:69}]},
       {id:'seo',name:'Website SEO',status:'warn',last_run:t(300),history:hist({11:'warn',13:'warn'}),kpis:[{label:'Clicks, 7 days',value:318,delta:'+9%'},{label:'Avg position',value:'21.4',delta:'-1.2'},{label:'Posts published',value:2}]},
       {id:'bids',name:'Bid Desk',status:'ok',last_run:t(4),history:hist([]),kpis:[{label:'Hard calls today',value:3},{label:'Jobs screened',value:37}]},
       {id:'linkedin',name:'LinkedIn',status:'ok',last_run:t(1440),history:hist({6:'down'}),kpis:[{label:'Posts queued',value:2}]}],
