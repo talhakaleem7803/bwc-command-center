@@ -156,10 +156,34 @@ nav.tabs .badge{position:absolute;top:2px;right:6px;background:var(--red);color:
 .msgs .rep{border-left:3px solid var(--green);padding-left:9px;margin-top:6px;color:var(--text)}
 .badge-r{font-size:11px;font-weight:600;color:var(--green);background:color-mix(in srgb,var(--green) 16%,transparent);border-radius:999px;padding:1px 7px}
 .warnline{color:var(--gold);font-size:13px;margin:8px 0 0}.panel .warnline{margin:0}
+/* Cold email: tabs, reply inbox, analysis, alarm bar */
+.otabs{display:flex;gap:6px;margin:4px 0 14px;flex-wrap:wrap}
+.otabs button{border:1px solid var(--line);background:none;border-radius:999px;padding:6px 14px;font-size:13.5px;color:var(--muted)}
+.otabs button[aria-pressed="true"]{background:var(--text);border-color:var(--text);color:var(--bg)}
+.otabs .n{display:inline-block;margin-left:6px;background:var(--red);color:#fff;border-radius:999px;font-size:11px;padding:0 6px;line-height:17px}
+.ntab{width:100%;border-collapse:collapse;font-size:13.5px}.ntab th{text-align:right;font-weight:500;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}.ntab th:first-child,.ntab td:first-child{text-align:left}
+.ntab td{text-align:right;padding:8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}.ntab tr.thin td{color:var(--muted);opacity:.55}.ntab .few{font-size:11px;margin-left:6px;font-style:italic}
+.orr h3 .em{font:400 13px/1.3 var(--body);color:var(--muted);overflow-wrap:anywhere}
+.orr .subj{font-size:13.5px;margin:2px 0 8px}.orr .sum{color:var(--text)!important;margin-bottom:10px!important}
+.orr .lbl{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:10px 0 4px}
+.orr .full{border-left:3px solid var(--line);padding-left:10px}.orr .sugg{border-left:3px solid var(--cyan);padding-left:10px;color:var(--text)!important}
+.orr p.clamp{display:-webkit-box;-webkit-line-clamp:8;-webkit-box-orient:vertical;overflow:hidden}
+.badge-i{font-size:11px;font-weight:700;color:#fff;background:var(--red);border-radius:999px;padding:1px 8px}
+.sev{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-radius:999px;padding:1px 8px;margin-right:6px}
+.sev.high{color:var(--red);background:color-mix(in srgb,var(--red) 16%,transparent)}.sev.medium{color:var(--gold);background:color-mix(in srgb,var(--gold) 16%,transparent)}.sev.info,.sev.low{color:var(--cyan);background:color-mix(in srgb,var(--cyan) 16%,transparent)}
+.finds{list-style:none;margin:0;padding:0}.finds li{border-bottom:1px solid var(--line);padding:10px 0;font-size:14px}.finds .act{color:var(--muted);font-size:13.5px;margin-top:4px}
+.rating{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.rating b{font:700 22px/1.2 var(--display)}.rating span{color:var(--muted);font-size:14px}
+.orbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-radius:12px;padding:11px 14px;margin:0 0 14px;font-weight:600;font-size:14.5px;background:color-mix(in srgb,var(--gold) 20%,var(--panel));border:1px solid var(--gold)}
+.orbar.hot{background:color-mix(in srgb,var(--red) 22%,var(--panel));border-color:var(--red);animation:orpulse 1.2s ease-in-out infinite}
+.orbar .acts{margin:0;gap:6px}
+@keyframes orpulse{50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--red) 35%,transparent)}}
+@media (prefers-reduced-motion:reduce){.orbar.hot{animation:none}}
+.warnline.red{color:var(--red);font-weight:600}
 </style>
 </head>
 <body data-v="inbox">
 <div class="wrap">
+  <div class="orbar" id="orBar" hidden role="alert"></div>
   <header class="top">
     <div class="count" id="count" aria-live="polite">–<small>Loading…</small></div>
     <div>
@@ -281,6 +305,7 @@ function render(){
   const b=$('#navBadge');b.hidden=!n;b.textContent=n;
   if('setAppBadge' in navigator){n?navigator.setAppBadge(n).catch(()=>{}):navigator.clearAppBadge().catch(()=>{})}
   try{afterRender(open)}catch(e){}
+  try{orAlarmCheck()}catch(e){}
 
   renderPanels(open);
 
@@ -360,6 +385,7 @@ function renderPanels(open){
       ${small.length?`<div class="p-kpis">${small.map(k=>`<div><b>${esc(k.value)}</b>${esc(k.label)}</div>`).join('')}</div>`:''}
       ${s.messages&&s.messages.awake&&s.messages.awake.from?`<p class="warnline" style="color:var(--cyan)">PC on ${esc(s.messages.awake.from)}–${esc(s.messages.awake.to||'')} today</p>`:''}
       ${s.metrics&&liStale(s.metrics)?'<p class="warnline">LinkedIn worker offline?</p>':''}
+      ${s.id==='email'&&orWaiting().length?`<p class="warnline red">${orWaiting().length===1?'1 reply waiting':orWaiting().length+' replies waiting'}${orWaiting().some(w=>w.interested)?' · interested':''}</p>`:''}
       ${top?`<div class="p-issue${(top.actions||[]).length?' has-acts':''}"><div class="n">${its.length===1?'1 needs you':its.length+' need you'}</div><div class="t">${esc(top.title)}</div>${(top.actions||[]).length?`<div class="acts">${actBtns(top)}</div>`:''}</div>`
         :`<div class="p-foot">${s.last_run?'Last run '+ago(s.last_run):'Waiting for its first run'}</div>`}
     </article>`}).join('');
@@ -400,18 +426,132 @@ function liMetricsHTML(m){
   <div class="viz"><div class="vt">Costs</div><div class="mgrid">${tile(n(c.apollo_today)+' / '+n(c.apollo_cap),'Apollo credits today')}${tile((c.apify_month_usd==null?'–':'$'+c.apify_month_usd)+' / '+(c.apify_budget_usd==null?'–':'$'+c.apify_budget_usd),'Apify this month')}</div></div>
   <div class="viz"><div class="vt">Health</div><p class="vnote" style="margin:0">Last update ${m.updated?esc(ago(m.updated)):'unknown'}${m.worker_seen?' · worker last ran '+esc(ago(m.worker_seen)):''}</p>${stale?'<p class="warnline">LinkedIn worker offline? No update for over 2 hours.</p>':''}${(m.errors||[]).length?`<p class="warnline">Failed today: ${esc(m.errors.join(', '))}</p>`:''}</div>`;
 }
+/* ---------- Cold email: live numbers, reply inbox, reply alarm, analysis ----------
+   Data comes from the hub's "outreach" op (polled every 60 s) and falls back to the summary's copy. */
+let OUT=null,OUT_REPLIES=[],orTab='overview',orRinging=false,orPolling=false,orLastRing=0;
+const orData=()=>OUT||(data&&data.outreach)||null;
+const orReplies=()=>OUT?OUT_REPLIES:((data&&data.replies)||[]);
+const orWaiting=()=>((orData()||{}).waiting_replies)||[];
+const orBody=id=>orReplies().find(r=>String(r.reply_id)===String(id))||{};
+const ORDIM=[['copy_version','Copy version'],['industry','Industry'],['country','Country'],['job_title','Job title'],['weekday','Weekday sent'],['subject_length','Subject length'],['body_length','Body length']];
+const fmtDay=d=>new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',weekday:'short',day:'numeric'}).format(new Date(d+'T12:00:00Z'));
+const pctv=v=>v==null||v===''?'–':v+'%';
+function orNumbersHTML(o){
+  const S=o.sent||{},R=o.replies||{};
+  const W=[['today','Today'],['last_24h','Last 24 hours'],['last_7d','Last 7 days'],['last_14d','Last 14 days'],['last_30d','Last 30 days']];
+  const bars=(o.by_day||[]).map(d=>({label:fmtDay(d.date),value:+d.sent||0})),mx=Math.max(1,...bars.map(b=>b.value));
+  const t=S.today||{};
+  return `<div class="mgrid">
+      <div class="mtile"><div class="v">${esc(t.sent??'–')}</div><div class="l">Sent today${o.daily_cap?' of '+esc(o.daily_cap)+' a day':''}</div></div>
+      <div class="mtile"><div class="v">${esc((S.last_7d||{}).sent??'–')}</div><div class="l">Sent, 7 days</div></div>
+      <div class="mtile"><div class="v">${esc((R.last_7d||{}).genuine??'–')}</div><div class="l">Real replies, 7 days</div></div>
+      <div class="mtile"><div class="v">${esc((R.last_30d||{}).interested??'–')}</div><div class="l">Interested, 30 days</div></div></div>
+    <div class="viz"><div class="vt">Emails sent</div><div class="tscroll"><table class="ntab"><thead><tr><th></th><th>Sent</th><th>First emails</th><th>Follow-ups</th><th>Bounced</th></tr></thead><tbody>
+      ${W.map(([k,l])=>{const x=S[k]||{};return`<tr><td>${l}</td><td><b>${esc(x.sent??'–')}</b></td><td>${esc(x.first_emails??'–')}</td><td>${esc(x.follow_ups??'–')}</td><td${+x.bounced?' style="color:var(--red)"':''}>${esc(x.bounced??'–')}</td></tr>`}).join('')}</tbody></table></div></div>
+    ${bars.length?`<div class="viz"><div class="vt">Sent per day · last 14 days (Pakistan time)</div><div class="bars">${bars.map(b=>`<div class="bar" title="${esc(b.label)}: ${b.value}"><span class="bv">${b.value||''}</span><i style="height:${Math.round(b.value/mx*100)}%"></i><span class="bl">${esc(b.label.slice(0,2))}<br>${esc(b.label.split(' ')[1]||'')}</span></div>`).join('')}</div></div>`:''}
+    <div class="viz"><div class="vt">Replies</div><table class="ntab"><thead><tr><th></th><th>Real replies</th><th>Interested</th></tr></thead><tbody>
+      ${[['last_7d','Last 7 days'],['last_14d','Last 14 days'],['last_30d','Last 30 days']].map(([k,l])=>{const x=R[k]||{};return`<tr><td>${l}</td><td><b>${esc(x.genuine??'–')}</b></td><td>${esc(x.interested??'–')}</td></tr>`}).join('')}</tbody></table></div>`;
+}
+function orInboxHTML(){
+  const W=orWaiting();
+  if(!W.length)return'<div class="empty"><strong>No replies waiting</strong>Real replies from leads show up here with the full message, and an alarm rings when a new one lands.</div>';
+  return W.map(w=>{const b=orBody(w.reply_id),body=String(b.body_text||''),sug=String(b.suggested_reply||'');
+    return `<article class="item orr ${w.interested?'urgent':'normal'}" id="orr-${esc(w.reply_id)}">
+      <div class="meta"><span>${w.received_at?ago(w.received_at):''}</span>${w.interested?'<span class="badge-i">Interested</span>':''}${w.intent?`<span>${esc(String(w.intent).replace(/_/g,' '))}</span>`:''}${w.sentiment?`<span>${esc(w.sentiment)}</span>`:''}</div>
+      <h3>${esc(w.from_name||w.from_email||'Unknown sender')}${w.company?` · ${esc(w.company)}`:''}<br><span class="em">${esc(w.from_email||'')}</span></h3>
+      ${w.subject?`<div class="subj"><span style="color:var(--muted)">Subject:</span> ${esc(w.subject)}</div>`:''}
+      ${w.summary?`<p class="sum">${esc(w.summary)}</p>`:''}
+      <div class="lbl">Full message</div>${body?`<p class="full${body.length>700?' clamp':''}">${esc(body)}</p>${body.length>700?'<button class="more">Show all</button>':''}`:'<p class="full">The full text isn’t available yet. Open it in Gmail.</p>'}
+      ${sug?`<div class="lbl">Suggested reply</div><p class="sugg">${esc(sug)}</p>`:''}
+      <div class="acts">${w.open_url?`<a class="btn primary" href="${esc(w.open_url)}" target="_blank" rel="noopener">Open in Gmail</a>`:''}${sug?`<button class="btn" data-orcopy="${esc(w.reply_id)}">Copy suggested reply</button>`:''}<button class="btn" data-orh="${esc(w.reply_id)}">Mark handled</button></div></article>`}).join('');
+}
+function orAnalysisHTML(o){
+  const a=o.analysis;if(!a)return'<div class="empty"><strong>No analysis yet</strong>It appears once the outreach system has sent enough emails.</div>';
+  const sm=a.sample||{};
+  const dims=a.dimensions||{};
+  return `<div class="rating"><b>${esc(a.rating||'–')}</b><span>${a.score==null?'No score yet':'Score '+esc(a.score)+' / 100'}</span></div>
+    ${a.headline?`<p style="margin:8px 0 0;font-size:14.5px">${esc(a.headline)}</p>`:''}
+    <p class="vnote" style="margin-top:6px">Based on ${esc(sm.delivered_mature??'–')} first emails that have had 5+ days to get a reply · ${esc(sm.still_maturing??0)} still too new to judge · a rating needs ${esc(sm.minimum_for_rating??30)}, a confident one ${esc(sm.confident_at??200)}.</p>
+    <div class="viz"><div class="vt">Findings</div>${(a.findings||[]).length?`<ul class="finds">${a.findings.map(f=>`<li><span class="sev ${esc(f.severity)}">${esc(f.severity)}</span><b>${esc(f.area)}</b><div style="margin-top:4px">${esc(f.finding)}</div>${f.action?`<div class="act">→ ${esc(f.action)}</div>`:''}</li>`).join('')}</ul>`:'<p class="vnote" style="margin:0">No findings yet.</p>'}</div>
+    ${ORDIM.filter(([k])=>Array.isArray(dims[k])&&dims[k].length).map(([k,l])=>`<div class="viz"><div class="vt">${l}</div><div class="tscroll"><table class="ntab"><thead><tr><th>${l}</th><th>Delivered</th><th>Replies</th><th>Reply rate</th><th>Interested rate</th></tr></thead><tbody>
+      ${dims[k].map(r=>`<tr class="${r.enough?'':'thin'}"><td>${esc(r.name)}${r.enough?'':'<span class="few">too few emails</span>'}</td><td>${esc(r.delivered)}</td><td>${esc(r.replies)}</td><td>${esc(pctv(r.reply_rate))}</td><td>${esc(pctv(r.interested_rate))}</td></tr>`).join('')}</tbody></table></div></div>`).join('')}
+    ${a.benchmarks?`<p class="vnote">${esc(a.benchmarks)}</p>`:''}`;
+}
+function orSectionHTML(s){
+  const o=orData(),n=orWaiting().length;
+  const tabs=[['overview','Numbers'],['inbox','Replies'],['analysis','Analysis']];
+  const body=orTab==='inbox'?orInboxHTML():orTab==='analysis'?orAnalysisHTML(o):orNumbersHTML(o)+extraViz(Object.assign({},s,{chart:null}));
+  return `<div class="otabs" role="tablist">${tabs.map(([k,l])=>`<button data-ortab="${k}" aria-pressed="${orTab===k}">${l}${k==='inbox'&&n?`<span class="n">${n}</span>`:''}</button>`).join('')}</div>${body}`;
+}
+function bindOr(root){
+  root.querySelectorAll('[data-ortab]').forEach(b=>b.onclick=e=>{e.stopPropagation();orTab=b.dataset.ortab;renderDetail()});
+  root.querySelectorAll('[data-orh]').forEach(b=>b.onclick=e=>{e.stopPropagation();orHandle(b)});
+  root.querySelectorAll('[data-orcopy]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const t=String(orBody(b.dataset.orcopy).suggested_reply||'');
+    try{await navigator.clipboard.writeText(t);toast('Suggested reply copied')}catch(x){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('Suggested reply copied')}catch(y){toast('Couldn’t copy. Select the text instead.')}ta.remove()}});
+}
+/* Mark handled: only ever from this button, never just because a reply was opened. */
+async function orHandle(btn){
+  const id=btn.dataset.orh,card=btn.closest('.acts');card.querySelectorAll('button').forEach(b=>b.disabled=true);
+  try{
+    const res=await api('action',{item_id:'reply:'+id,action:'handled'});
+    if(res&&res.ok===false)throw new Error(res.message||'Failed');
+    for(const o of [OUT,data&&data.outreach])if(o){o.waiting_replies=(o.waiting_replies||[]).filter(w=>String(w.reply_id)!==String(id));
+      const al=o.alarm||(o.alarm={});al.count=o.waiting_replies.length;al.interested_count=o.waiting_replies.filter(w=>w.interested).length}
+    const it=(data.items||[]).find(x=>x.id==='reply:'+id);if(it)it.status='done';
+    toast('Marked handled');orAlarmCheck();render();
+  }catch(e){card.querySelectorAll('button').forEach(b=>b.disabled=false);toast(e.message==='auth'?'Access key rejected. Check Settings.':'That didn’t go through. Try again.')}
+}
+/* Alarm: rings when a reply it hasn't announced before is waiting; repeats until the replies are handled
+   (or Silence is pressed). Interested replies ring faster with an urgent beep in front of the voice clip. */
+function orAnnounced(){try{return JSON.parse(store.get('hub.orann','[]'))}catch(e){return[]}}
+function orBeep(){try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const ctx=orBeep.c||(orBeep.c=new C());ctx.resume&&ctx.resume();
+  [0,.18,.36,.72,.9,1.08].forEach(t=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type='square';o.frequency.value=t<.5?1320:990;g.gain.setValueAtTime(.0001,ctx.currentTime+t);g.gain.exponentialRampToValueAtTime(.9,ctx.currentTime+t+.01);g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+t+.14);o.connect(g).connect(ctx.destination);o.start(ctx.currentTime+t);o.stop(ctx.currentTime+t+.16)})}catch(e){}}
+function orRing(){const hot=+((orData()||{}).alarm||{}).interested_count>0;orLastRing=Date.now();if(hot){orBeep();setTimeout(()=>playAlarm('email_reply'),1400)}else playAlarm('email_reply')}
+function orAlarmCheck(){
+  const o=orData(),al=(o&&o.alarm)||{},W=orWaiting(),count=+al.count||0,hot=+al.interested_count>0;
+  if(count>0){
+    const ann=orAnnounced(),fresh=W.filter(w=>w.reply_id&&!ann.includes(String(w.reply_id)));
+    if(fresh.length){
+      store.set('hub.orann',JSON.stringify([...fresh.map(w=>String(w.reply_id)),...ann].slice(0,500)));
+      orRinging=true;orRing();
+      const f=fresh[0],fh=fresh.filter(w=>w.interested).length,who=w=>w.from_name||w.from_email||'a lead';
+      const title=fh?'🔥 '+(fresh.length===1?'Interested reply from '+who(f):fh+' interested replies'):(fresh.length===1?'Reply from '+who(f):fresh.length+' new replies');
+      if(MODE==='desktop'){try{window.ccDesktop.notify({title,body:fresh.length===1?String(f.summary||f.subject||'').slice(0,200):fresh.slice(0,4).map(w=>'• '+who(w)).join('\n'),sound:'email_reply',urgent:true})}catch(e){}}
+      else if(MODE==='web'&&document.hidden&&'Notification' in window&&Notification.permission==='granted'){try{new Notification(title,{body:String(f.summary||'').slice(0,200),tag:'orreply',requireInteraction:true})}catch(e){}}
+    }
+  }else orRinging=false;
+  const bar=$('#orBar');bar.hidden=count<=0;bar.classList.toggle('hot',hot);
+  if(count>0){const old=+al.oldest_waiting_minutes||0;
+    bar.innerHTML=`<span>${hot?'🔥 ':''}${esc(al.message||count+' replies waiting')}${hot?` · ${al.interested_count} interested`:''}${old?` · oldest ${old<60?old+'m':Math.round(old/60)+'h'}`:''}</span>
+      <span class="acts"><button class="btn primary" id="orOpen">Open replies</button>${orRinging?'<button class="btn" id="orMute">Silence</button>':''}</span>`;
+    $('#orOpen').onclick=e=>{e.stopPropagation();show('inbox');orTab='inbox';detailId='email';renderDetail();window.scrollTo({top:0})};
+    const m=$('#orMute');if(m)m.onclick=e=>{e.stopPropagation();orRinging=false;stopAlarm();orAlarmCheck()};
+  }
+}
+setInterval(()=>{if(!orRinging)return;const hot=+((orData()||{}).alarm||{}).interested_count>0;
+  if(!hot&&quietNow())return; /* at night, ordinary replies ring once; interested ones keep ringing */
+  if(Date.now()-orLastRing>=(hot?8000:20000))orRing()},1000);
+async function pollOutreach(){
+  if(orPolling||(!key&&!DEMO))return;orPolling=true;
+  try{const r=await api('outreach');if(r&&r.outreach){OUT=r.outreach;OUT_REPLIES=r.replies||[]}}catch(e){}
+  orPolling=false;orAlarmCheck();
+  if(data&&!detailId)renderPanels((data.items||[]).filter(i=>i.status==='open'));
+  /* keep an expanded message open: only redraw the email view when nothing in it is expanded */
+  if(detailId==='email'&&![...document.querySelectorAll('#detail .more')].some(b=>b.textContent==='Show less'))renderDetail();
+}
 function renderDetail(){
   const s=detailId&&(data.systems||[]).find(x=>x.id===detailId);
   const on=!!s;$('#detail').hidden=!on;$('#panels').classList.toggle('hide',on);$('#cols').classList.toggle('hide',on);
   if(!on){detailId=null;return}
-  const its=(data.items||[]).filter(i=>i.status==='open'&&i.system===s.id).sort(byUrgency);
+  const orOn=s.id==='email'&&!!orData();
+  const its=(data.items||[]).filter(i=>i.status==='open'&&i.system===s.id&&!(orOn&&i.kind==='reply')).sort(byUrgency);
   $('#detail').innerHTML=`<button class="refresh back" id="back">← All automations</button>
     <article class="sys-card"><header><b>${esc(s.name)}</b><span><span class="pill ${esc(s.status)}">${stLabel(s.status)}</span> · ${s.last_run?'last run '+ago(s.last_run):'no runs yet'}</span></header>
     ${s.detail?`<p class="vnote" style="margin:0 0 12px">${esc(s.detail)}</p>`:''}
-    ${s.messages?liMessagesHTML(s.messages):''}${s.metrics?liMetricsHTML(s.metrics):`<div class="kpis">${(s.kpis||[]).map(k=>`<div class="kpi"><div class="v">${esc(k.value)}</div><div class="l">${esc(k.label)}</div>${k.delta?`<div class="d ${(k.good!=null?k.good:!String(k.delta).startsWith('-'))?'up':'down'}">${esc(k.delta)}</div>`:''}</div>`).join('')||'<div class="kpi"><div class="l">No numbers reported yet</div></div>'}</div>`}${extraViz(s)}</article>
+    ${orOn?orSectionHTML(s):`${s.messages?liMessagesHTML(s.messages):''}${s.metrics?liMetricsHTML(s.metrics):`<div class="kpis">${(s.kpis||[]).map(k=>`<div class="kpi"><div class="v">${esc(k.value)}</div><div class="l">${esc(k.label)}</div>${k.delta?`<div class="d ${(k.good!=null?k.good:!String(k.delta).startsWith('-'))?'up':'down'}">${esc(k.delta)}</div>`:''}</div>`).join('')||'<div class="kpi"><div class="l">No numbers reported yet</div></div>'}</div>`}${extraViz(s)}`}</article>
     <h2>Needs you</h2>${its.length?its.map(itemHTML).join(''):'<div class="empty"><strong>Nothing needs you here</strong>This automation is running on its own.</div>'}`;
   $('#back').onclick=()=>{detailId=null;renderDetail()};
-  bindActs($('#detail'));
+  bindActs($('#detail'));bindOr($('#detail'));
 }
 
 /* Push alerts through Firebase Cloud Messaging (same Firebase project as Bid Desk) */
@@ -537,6 +677,7 @@ if(MODE==='android'){
   document.addEventListener('click',e=>{const a=e.target.closest('a[target=_blank]');if(!a)return;e.preventDefault();native('openUrl',{url:a.href}).catch(()=>{})},true);
 }
 if(MODE==='desktop'){setInterval(load,60000)}
+setInterval(pollOutreach,60000);setTimeout(pollOutreach,1500);
 let pushChecked=false;
 function showSetup(){
   document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
@@ -600,7 +741,21 @@ setInterval(()=>{if(!document.hidden&&MODE!=='desktop')load()},300000);
 if('serviceWorker' in navigator&&!DEMO){const fb=store.get('hub.fb','');navigator.serviceWorker.register('sw.js'+(fb?'?cfg='+encodeURIComponent(fb):'')).catch(()=>{})}
 
 /* Demo data so the layout can be reviewed before the server is connected */
+function demoOutreach(){
+  const h=Date.now(),t=m=>new Date(h-m*60000).toISOString(),days=Array.from({length:14},(_,i)=>({date:new Date(h-(13-i)*864e5).toISOString().slice(0,10),sent:[9,12,11,0,12,12,10,12,8,0,12,11,12,4][i]}));
+  const W=[{reply_id:'R1',received_at:t(6),age_minutes:6,from_name:'Sara Ahmed',from_email:'sara@lumioaudio.com',company:'Lumio Audio',subject:'Re: 3D visuals for the new earbuds',intent:'pricing_question',sentiment:'positive',summary:'Interested. Asks for pricing and timeline for a 30-second launch animation.',interested:true,status:'New',open_url:'https://mail.google.com/mail/#search/from%3Asara%40lumioaudio.com'},
+    {reply_id:'R2',received_at:t(95),age_minutes:95,from_name:'Mark Feld',from_email:'mark@feldtools.de',company:'',subject:'Re: Product renders',intent:'not_now',sentiment:'neutral',summary:'Not now, maybe after Q1. Asks to follow up in January.',interested:false,status:'New',open_url:'https://mail.google.com/mail/#search/from%3Amark%40feldtools.de'}];
+  const d=(n,del,rep,int,en)=>({name:n,delivered:del,replies:rep,reply_rate:del?Math.round(rep/del*1000)/10:0,interested_rate:del?Math.round(int/del*1000)/10:0,enough:en});
+  return {ok:true,outreach:{generated_at:t(0),day_boundary:'Asia/Karachi',daily_cap:12,sent:{today:{sent:4,first_emails:2,follow_ups:2,bounced:0},last_24h:{sent:11,first_emails:5,follow_ups:6,bounced:0},last_7d:{sent:49,first_emails:21,follow_ups:28,bounced:1},last_14d:{sent:109,first_emails:45,follow_ups:64,bounced:2},last_30d:{sent:201,first_emails:77,follow_ups:124,bounced:3}},
+    by_day:days,replies:{last_7d:{genuine:2,interested:1},last_14d:{genuine:2,interested:1},last_30d:{genuine:3,interested:1}},waiting_replies:W,
+    alarm:{level:'urgent',count:2,interested_count:1,newest_reply_id:'R1',newest_at:t(6),oldest_waiting_minutes:95,message:'2 real replies are waiting for you'},
+    analysis:{rating:'Early read: weak, not yet proven',score:28,headline:'1 real reply and 0 interested from 61 delivered first emails (1.6% reply, 0% interested, 3.9% bounced). Typical cold B2B: 3-8% replies, 1-3% interested.',sample:{delivered_mature:61,still_maturing:16,minimum_for_rating:30,confident_at:200},
+      findings:[{severity:'high',area:'List quality / deliverability',finding:'Bounce rate is 3.9%. Anything above 2-3% damages the sender reputation.',action:'Verify emails before sending.'},{severity:'medium',area:'Overall response',finding:'Reply rate is 1.6%, under the 3-8% norm.',action:'Tighten targeting and test a shorter first email.'},{severity:'info',area:'Copy version',finding:'Each copy version needs about 20 delivered emails before they can be compared.',action:'Keep splitting evenly.'}],
+      dimensions:{copy_version:[d('A',33,1,0,true),d('B',24,0,0,true),d('C',4,0,0,false)],industry:[d('Consumer electronics',28,1,0,true),d('Furniture',14,0,0,false),d('Cosmetics',9,0,0,false)],country:[d('United States',31,1,0,true),d('Germany',12,0,0,false)],job_title:[d('Marketing / brand',26,1,0,true),d('Owner / CEO',22,0,0,false)],weekday:[d('Tue',21,1,0,true),d('Wed',18,0,0,false)],subject_length:[d('Medium subject (4-6 words)',40,1,0,true),d('Short subject (1-3 words)',21,0,0,false)],body_length:[d('Medium body (80-129)',45,1,0,true),d('Short body (<80 words)',16,0,0,false)]},benchmarks:'Typical cold B2B email: reply rate 3-8%, interested 1-3%, bounce under 2%.'}},
+    replies:[{reply_id:'R1',body_text:'Hi Talha,\n\nThanks for reaching out. We are launching new earbuds in March and need a 30-second animation for the launch.\n\nWhat would that cost, and how long would it take?\n\nSara',suggested_reply:'Hi Sara,\n\nGreat timing. A 30-second launch animation usually takes 7-10 days. Could you send the CAD or a few product photos so I can quote exactly?\n\nTalha'},{reply_id:'R2',body_text:'Not right now, we are busy until Q1. Try me again in January.\n\nMark',suggested_reply:''}]};
+}
 function demo(op,extra){
+  if(op==='outreach') return Promise.resolve(demoOutreach());
   if(op!=='summary') return Promise.resolve({ok:true,message:extra&&extra.action==='approve'?'Approved':'Done'});
   const h=Date.now(),t=m=>new Date(h-m*60000).toISOString(),hist=(p)=>Array.from({length:14},(_,i)=>p[i]||'ok');
   return Promise.resolve({generated_at:t(1),
