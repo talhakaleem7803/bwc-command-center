@@ -179,6 +179,12 @@ nav.tabs .badge{position:absolute;top:2px;right:6px;background:var(--red);color:
 @keyframes orpulse{50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--red) 35%,transparent)}}
 @media (prefers-reduced-motion:reduce){.orbar.hot{animation:none}}
 .warnline.red{color:var(--red);font-weight:600}
+/* Inbox / Needs Talha */
+.panel.inbox{border-color:color-mix(in srgb,var(--cyan) 45%,var(--line))}
+.ib .todo{border-left:3px solid var(--gold);padding-left:10px;color:var(--text)!important;font-weight:500}
+.ib .cc{font-size:13px;color:var(--muted);margin-top:8px!important}
+.ib .from{font-size:12px;color:var(--muted);margin-top:6px}
+.ib .lbl{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--gold);margin:8px 0 4px}
 </style>
 </head>
 <body data-v="inbox">
@@ -264,7 +270,7 @@ let base=store.get('hub.base',DEFAULT_BASE), key=store.get('hub.key',''), data=n
 const DEMO=new URLSearchParams(location.search).has('demo')||location.protocol==='file:';
 const IN_APP=new URLSearchParams(location.search).get('app')==='biddesk';
 if(store.get('hub.base','').includes('/webhook')===false)store.set('hub.base',DEFAULT_BASE);
-const SYS={email:'Cold email',seo:'Website SEO',bids:'Bid Desk',linkedin:'LinkedIn posts',lileads:'LinkedIn Leads',system:'System'};
+const SYS={email:'Cold email',seo:'Website SEO',bids:'Bid Desk',linkedin:'LinkedIn posts',lileads:'LinkedIn Leads',system:'System',hub:'Command Center',inbox:'Inbox'};
 /* Which numbers each panel puts first (by KPI label); other systems use their first numbers. */
 const PICK={email:['Sent, last 7 days','Reply rate','Bounce rate','Approved, waiting to send'],lileads:['Invites today','Replies, 7 days','Accept rate, 7 days','Leads found today']};
 let detailId=null;
@@ -289,7 +295,7 @@ async function load(){
   try{
     data=await api('summary');
     if(data&&data.error==='setup_needed'){showSetup();return}
-    $('#v-setup').hidden=true; render(); pushBanner(); if(!pushChecked&&store.get('hub.push','')==='on'){pushChecked=true;enablePush(true)} }
+    $('#v-setup').hidden=true; render(); pushBanner(); loadInbox(); if(!pushChecked&&store.get('hub.push','')==='on'){pushChecked=true;enablePush(true)} }
   catch(e){
     if(e.message==='setup'){showSetup();return}
     if(e.message==='auth'||!key){show('settings');$('#count').innerHTML='Connect<small>Enter your access key in Settings.</small>'}
@@ -374,7 +380,7 @@ function pickKpis(s){
   return [...first,...ks.filter(k=>!first.includes(k))];
 }
 function renderPanels(open){
-  $('#panels').innerHTML=(data.systems||[]).map(s=>{
+  $('#panels').innerHTML=inboxPanelHTML()+(data.systems||[]).map(s=>{
     const pr=i=>(i.actions||[]).some(a=>String(a.id).startsWith('fix:'))?0:(i.actions||[]).some(a=>a.url)?1:2;
     const its=open.filter(i=>i.system===s.id).sort((a,b)=>pr(a)-pr(b)||byUrgency(a,b)), top=its[0];
     const ks=pickKpis(s), big=ks[0], small=ks.slice(1,3).filter(k=>String(k.value).length<=14);
@@ -539,7 +545,49 @@ async function pollOutreach(){
   /* keep an expanded message open: only redraw the email view when nothing in it is expanded */
   if(detailId==='email'&&![...document.querySelectorAll('#detail .more')].some(b=>b.textContent==='Show less'))renderDetail();
 }
+/* ---------- Inbox / Needs Talha: open HUB_INBOX messages from the worker chats (read through the hub, op "inbox") ---------- */
+let INBOX=null;
+const IB_U={urgent:'Urgent',high:'High'};
+async function loadInbox(){
+  try{const r=await api('inbox');if(r&&r.available!==false&&Array.isArray(r.items))INBOX=r}catch(e){}
+  if(!data)return;
+  if(detailId==='inbox')renderInbox();else if(!detailId)renderPanels((data.items||[]).filter(i=>i.status==='open'));
+}
+function inboxPanelHTML(){
+  if(!INBOX)return'';
+  const n=INBOX.needs_talha||0,c=INBOX.count||0,top=(INBOX.items||[])[0],st=n?'warn':'ok';
+  return `<article class="panel inbox ${st}" data-sys="inbox" tabindex="0" role="button" aria-label="Inbox: ${n} need you, ${c} open">
+    <div class="p-top"><b>Inbox · Needs Talha</b><span class="pill ${st}">${n?n+' for you':c?'Info only':'Clear'}</span></div>
+    <div class="p-big"><div class="v">${n}</div><div class="l">${n===1?'to-do for you':'to-dos for you'}</div></div>
+    <div class="p-kpis"><div><b>${c}</b>Open messages</div><div><b>${(INBOX.items||[]).filter(m=>m.urgency==='urgent'||m.urgency==='high').length}</b>Urgent</div></div>
+    ${top?`<div class="p-issue"><div class="n">${top.needs_talha?'Needs you':'Latest'} · ${esc(SYS[top.system]||top.system)}</div><div class="t">${esc(top.title)}</div></div>`:'<div class="p-foot">No open messages from the worker chats</div>'}
+  </article>`;
+}
+function inboxItemHTML(m){
+  const cls=m.urgency==='urgent'||m.urgency==='high'?'urgent':m.needs_talha?'normal':'low';
+  const wc=String(m.what_changed||'');
+  return `<article class="item ib ${cls}">
+    <div class="meta"><span class="sys">${esc(SYS[m.system]||m.system)}</span>${m.created_at?`<span>${ago(m.created_at)}</span>`:''}${IB_U[m.urgency]?`<span style="color:var(--red)">${IB_U[m.urgency]}</span>`:''}${m.kind?`<span>${esc(m.kind)}</span>`:''}${m.needs_talha?'<span class="badge-i" style="background:var(--gold);color:#121212">For you</span>':''}</div>
+    <h3>${esc(m.title)}</h3>
+    ${m.needs_talha?`<div class="lbl">Your to-do</div><p class="todo">${esc(m.talha_action)}</p>`:''}
+    ${wc?`<p class="${wc.length>320?'clamp':''}" style="margin-top:8px">${esc(wc)}</p>${wc.length>320?'<button class="more">Show all</button>':''}`:''}
+    ${m.cc_action?`<p class="cc">Command Center: ${esc(m.cc_action)}</p>`:''}
+    ${m.from_chat?`<div class="from">From ${esc(m.from_chat)}</div>`:''}
+  </article>`;
+}
+function renderInbox(){
+  $('#detail').hidden=false;$('#panels').classList.add('hide');$('#cols').classList.add('hide');
+  const its=(INBOX&&INBOX.items)||[],mine=its.filter(m=>m.needs_talha),rest=its.filter(m=>!m.needs_talha);
+  $('#detail').innerHTML=`<button class="refresh back" id="back">← All automations</button>
+    <article class="sys-card"><header><b>Inbox · Needs Talha</b><span>${INBOX?'updated '+ago(INBOX.generated_at):'loading…'}</span></header>
+    <p class="vnote" style="margin:0">Messages the worker chats posted for the Command Center. Say “check the inbox” in the Command Center chat to have them handled and closed.</p></article>
+    <h2>Needs you</h2>${mine.length?mine.map(inboxItemHTML).join(''):'<div class="empty"><strong>Nothing needs you</strong>No to-dos from the worker chats right now.</div>'}
+    ${rest.length?`<h2>For the Command Center</h2>${rest.map(inboxItemHTML).join('')}`:''}`;
+  $('#back').onclick=()=>{detailId=null;renderDetail()};
+  bindActs($('#detail'));
+}
 function renderDetail(){
+  if(detailId==='inbox'){renderInbox();return}
   const s=detailId&&(data.systems||[]).find(x=>x.id===detailId);
   const on=!!s;$('#detail').hidden=!on;$('#panels').classList.toggle('hide',on);$('#cols').classList.toggle('hide',on);
   if(!on){detailId=null;return}
@@ -756,6 +804,9 @@ function demoOutreach(){
 }
 function demo(op,extra){
   if(op==='outreach') return Promise.resolve(demoOutreach());
+  if(op==='inbox') return Promise.resolve({ok:true,available:true,generated_at:new Date().toISOString(),count:2,needs_talha:1,items:[
+    {msg_id:'d1',system:'email',from_chat:'Cold email system',kind:'request',urgency:'high',title:'Approve the new follow-up copy (version D)',what_changed:'Version D follow-up drafted after version B underperformed.',cc_action:'Show version D in the Cold email panel.',talha_action:'Read version D in the outreach dashboard and approve or reject it.',needs_talha:true,created_at:new Date(Date.now()-36e5).toISOString()},
+    {msg_id:'d2',system:'linkedin',from_chat:'LinkedIn content automation system',kind:'change',urgency:'low',title:'X publisher now converts carousel images to JPEG before upload',what_changed:'New Convert For X node fixes 503 errors on large PNGs.',cc_action:'None needed. Info only.',talha_action:'',needs_talha:false,created_at:new Date(Date.now()-72e5).toISOString()}]});
   if(op!=='summary') return Promise.resolve({ok:true,message:extra&&extra.action==='approve'?'Approved':'Done'});
   const h=Date.now(),t=m=>new Date(h-m*60000).toISOString(),hist=(p)=>Array.from({length:14},(_,i)=>p[i]||'ok');
   return Promise.resolve({generated_at:t(1),
