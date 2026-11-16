@@ -4,6 +4,19 @@ Newest first. One entry per change to n8n or the app.
 
 ## 16 Nov 2026
 
+- Owner completed four fixes, each tested live at about 23:20 PKT: lead-gen
+  worker restarted (reporting, new Apify key accepted, 35 leads found);
+  "LinkedIn account" reconnected (token accepted; posting proven only when the
+  17 Nov 10:00 PKT post goes out); "Wordpress account" now logs in as
+  administrator and `status=any` works; Pushover keys set and a test alert was
+  accepted by Pushover.
+- Known gap in `BWC LI 4 - Publisher`: its "Handle Failure" step does not
+  recognise "OAuth access token expired" as an outside failure, so an expired
+  login burns all 3 attempts and parks the post as Failed. Not changed yet.
+- Posts `LI-20261106-GAT6L` and `LI-20261111-5N0UB` are still Failed. To
+  re-queue: `publishing_status` to `Not Published`, `attempt_count` to 0, and a
+  future `scheduled_at_utc`.
+
 - Diagnosed `BWC publish post` (Mondays, fails at "Find existing post"). Cause is on
   the website, not in the workflow: WordPress treats every request from n8n as not
   logged in, so `status=any` is refused. Either the site has no application
