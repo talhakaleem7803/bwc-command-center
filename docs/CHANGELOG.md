@@ -15,6 +15,17 @@ Newest first. One entry per change to n8n or the app.
   `act_now` notices after quiet hours; sends the 09:00 summary. First run raised
   8 alerts (3 `act_now`, sent by email). No cold-email check yet: sends and
   sender health are not in any data table.
+- Error handling repointed to `HUB2 3 - Error Catcher` on 26 active workflows
+  (BWC CE 1, IG 1 to 4, LI 1 to 6, X 1 to 3, publish post, weekly SEO, Asset
+  Upload, JA 1 to 5, OR 11 to 13, HUB 8 Chat Inbox). Settings change only; no
+  workflow version changed.
+- `OR 8 - Error Alerts`: added one node, "Raise Hub2 Alert", so cold-email
+  failures also reach the hub (system `email`). Its own email is unchanged.
+  Previous version for rollback: `d89593b9-a41a-45fb-841b-7e73f5dacea4`.
+- Left alone: `OR 0x` (unpublished draft differs; still on the old catcher),
+  `OR 1` to `7` and `OR 10` (on OR 8), all hub v1 workflows.
+- Not yet run live: quiet-hours hold, Pushover send (keys blank), the catcher's
+  fallback when Intake itself fails.
 - The lead-gen worker has not reported since 15 Nov 13:21 PKT, and the restart
   command queued on 15 Nov was never picked up. The PC or the worker task is off.
 
