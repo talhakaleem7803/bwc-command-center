@@ -9,8 +9,12 @@ Newest first. One entry per change to n8n or the app.
   logged in, so `status=any` is refused. Either the site has no application
   password for n8n, or the host strips the login header before WordPress sees it.
   Workflow left unchanged. Fix steps are in `docs/SYSTEMS.md`.
-- Started `HUB2 4 - Outcome Watch` (hourly outcome checks, auto-close, 09:00
-  summary).
+- Built and switched on `HUB2 4 - Outcome Watch` (`Hgiqv1jFjb02JhHp`): hourly
+  outcome checks for LinkedIn, X, Instagram, Bid Desk, SEO, lead generation and
+  stuck commands; closes alerts when the condition clears; resends held
+  `act_now` notices after quiet hours; sends the 09:00 summary. First run raised
+  8 alerts (3 `act_now`, sent by email). No cold-email check yet: sends and
+  sender health are not in any data table.
 - The lead-gen worker has not reported since 15 Nov 13:21 PKT, and the restart
   command queued on 15 Nov was never picked up. The PC or the worker task is off.
 

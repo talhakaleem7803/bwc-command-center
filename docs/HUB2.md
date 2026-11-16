@@ -27,7 +27,7 @@ counter. Health is judged by outcomes. Only `act_now` reaches the phone.
 | `HUB2 1 - Event Intake` | `jbGSi2YTtNvXdQsR` | Sub-workflow. The single door: raise, close, log. Writes `HUB2_ALERTS` and `HUB2_HISTORY`; sends `act_now` through Notify. |
 | `HUB2 2 - Notify` | `ZwX1v6qAR7OJKl4h` | Sub-workflow. Pushover when the keys are set, otherwise Gmail. Holds notices during quiet hours unless forced. Also sends the morning summary. |
 | `HUB2 3 - Error Catcher` | `LWxeg4ePQOkkWMwy` | Error workflow. Maps the failed workflow to a system by the registry prefixes and raises `wf:<id>:<step>`. |
-| `HUB2 4 - Outcome Watch` | see CHANGELOG | Hourly. Checks what each automation produced, raises and closes alerts, sends the 09:00 summary. |
+| `HUB2 4 - Outcome Watch` | `Hgiqv1jFjb02JhHp` | Hourly. Checks what each automation produced, raises and closes alerts, sends the 09:00 summary. |
 
 ### Intake inputs
 
