@@ -4,6 +4,19 @@ Newest first. One entry per change to n8n or the app.
 
 ## 16 Nov 2026
 
+- Publishers `BWC LI 4`, `BWC X 3`, `BWC IG 3`: "Handle Failure" now treats login
+  errors (token expired, reconnect, invalid_token, revoked, 401) as outside
+  failures, so the post waits instead of using up its attempts. Rollback
+  versions: LI 4 `f95a94e6-732b-4d5b-9518-5e269a4a3f8b`, X 3
+  `55fb57c9-89da-4cdb-b35a-436758bc5240`, IG 3
+  `71d1abde-bbf9-4c1e-ab72-fcd2aae40f3e`. Not yet proven on a real expired login.
+- Owner dropped posts `LI-20261106-GAT6L` and `LI-20261111-5N0UB` and their X
+  copies: `approval_status` set to `Rejected` (LinkedIn rows also `Unscheduled`).
+- `HUB2 4 - Outcome Watch`: new alert `linkedin:login_expiring` (`today` at 50
+  days, `act_now` at 56) from setting `LINKEDIN_LOGIN_RENEWED` (2026-11-16;
+  update it after every reconnect). Rejected posts no longer count as failed.
+  Rollback version `4c1b4972-dac3-4a5a-8a2b-4165143fc4bf`.
+
 - Owner completed four fixes, each tested live at about 23:20 PKT: lead-gen
   worker restarted (reporting, new Apify key accepted, 35 leads found);
   "LinkedIn account" reconnected (token accepted; posting proven only when the
@@ -13,9 +26,6 @@ Newest first. One entry per change to n8n or the app.
 - Known gap in `BWC LI 4 - Publisher`: its "Handle Failure" step does not
   recognise "OAuth access token expired" as an outside failure, so an expired
   login burns all 3 attempts and parks the post as Failed. Not changed yet.
-- Posts `LI-20261106-GAT6L` and `LI-20261111-5N0UB` are still Failed. To
-  re-queue: `publishing_status` to `Not Published`, `attempt_count` to 0, and a
-  future `scheduled_at_utc`.
 
 - Diagnosed `BWC publish post` (Mondays, fails at "Find existing post"). Cause is on
   the website, not in the workflow: WordPress treats every request from n8n as not
