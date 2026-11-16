@@ -81,6 +81,15 @@ h2.red{color:var(--red)}h2.amber{color:var(--gold)}
 .foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:26px}
 .setup{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:20px}
 .setup input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;margin:10px 0}
+.card.appr{border-left-color:var(--cyan)}
+.card img{max-width:100%;border-radius:10px;margin-top:10px;display:block;max-height:320px}
+h2.cyan{color:var(--cyan)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:6px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.tile small{display:block;color:var(--muted);font-size:12.5px;line-height:1.3}
+.tile b{display:block;font-size:22px;line-height:1.25;margin:2px 0;overflow-wrap:anywhere}
+.tile b.long{font-size:15px}
+.btn.no{color:var(--red)}
 .toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:.2s;z-index:9;max-width:90vw}
 .toast.show{opacity:1;transform:translateX(-50%)}
 </style>
@@ -102,7 +111,7 @@ const $=s=>document.querySelector(s);
 const store={get(k,d){try{return localStorage.getItem(k)??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const BASE='https://n8n.srv1962408.hstgr.cloud/webhook';
 const DEMO=new URLSearchParams(location.search).has('demo')||location.protocol==='file:';
-let key=store.get('hub.key',''), state=null, tab='today', sysData={}, hist=null, lastOk=0, failed=false;
+let key=store.get('hub.key',''), state=null, tab='today', sysData={}, stats={}, appr=[], hist=null, lastOk=0, failed=false;
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2600)}
@@ -123,6 +132,7 @@ async function load(quiet){
   if(!key&&!DEMO){setup();return}
   try{
     state=await api('today'); lastOk=Date.now(); failed=false;
+    loadApprovals();
     if(tab!=='today'&&tab!=='history') loadSystem(tab,true);
     if(tab==='history') loadHistory(true);
     render();
@@ -131,7 +141,9 @@ async function load(quiet){
     failed=true; render(); if(!quiet) toast('Could not reach the hub. Showing the last result.');
   }
 }
-async function loadSystem(s,quiet){try{const j=await api('system',{system:s});if(j&&j.ok){sysData[s]=j;if(tab===s)render()}}catch(e){if(!quiet)toast('Could not load this tab.')}}
+async function loadSystem(s,quiet){loadStats(s);try{const j=await api('system',{system:s});if(j&&j.ok){sysData[s]=j;if(tab===s)render()}}catch(e){if(!quiet)toast('Could not load this tab.')}}
+async function loadApprovals(){try{const j=await api('approvals');if(j&&j.ok&&Array.isArray(j.items)){appr=j.items;render()}}catch(e){}}
+async function loadStats(s){try{const j=await api('stats',{system:s});if(j&&j.ok){stats[s]=j;if(tab===s)render()}}catch(e){}}
 async function loadHistory(quiet){try{const j=await api('history',{limit:80});if(j&&j.ok){hist=j.history;if(tab==='history')render()}}catch(e){if(!quiet)toast('Could not load history.')}}
 
 function setup(bad){
@@ -170,6 +182,17 @@ function card(a,showSys){
       <button class="btn ghost" data-close>Mark done</button>
     </div></article>`;
 }
+const SYSN={linkedin:'LinkedIn post',x:'X post',instagram:'Instagram post'};
+function apprCard(p,i){
+  const long=(p.text||'').length>110||(p.text||'').split('\n').length>3, img=safeUrl(p.media_url);
+  return `<article class="card appr" data-appr="${i}">
+    <div class="sys"><b>${esc(SYSN[p.system]||p.system)}</b><span>${p.scheduled_for?'goes out '+esc(when(p.scheduled_for)):''}</span></div>
+    <h3>${esc(p.title||'Untitled post')}</h3>
+    ${p.text?`<div class="detail">${esc(p.text)}</div>${long?'<button class="more" data-more>Show full post</button>':''}`:''}
+    ${img?`<img src="${esc(img)}" alt="" loading="lazy">`:''}
+    <div class="acts"><button class="btn primary" data-decide="approve">Approve</button><button class="btn ghost no" data-decide="reject">Reject</button></div></article>`;
+}
+function apprBlock(list){return list.length?`<h2 class="cyan">Waiting for your approval <span class="n">${list.length}</span></h2>`+list.map(p=>apprCard(p,appr.indexOf(p))).join(''):''}
 function banner(){
   let b='';
   if(failed) b+=`<div class="banner">Cannot reach the hub right now. This is the last result${lastOk?', from '+ago(lastOk):''}.</div>`;
@@ -177,10 +200,12 @@ function banner(){
   return b;
 }
 function renderToday(){
-  const act=state.alerts.filter(a=>a.level==='act_now'), tod=state.alerts.filter(a=>a.level==='today');
+  const hideA=a=>!(appr.length&&/:approvals_waiting$/.test(a.alert_id));
+  const act=state.alerts.filter(a=>a.level==='act_now'), tod=state.alerts.filter(a=>a.level==='today'&&hideA(a));
   let h=banner();
-  if(!act.length&&!tod.length) h+=`<div class="clear"><b>All systems are doing their job</b><small>Nothing needs you. Go talk to clients.</small></div>`;
+  if(!act.length&&!tod.length&&!appr.length) h+=`<div class="clear"><b>All systems are doing their job</b><small>Nothing needs you. Go talk to clients.</small></div>`;
   if(act.length) h+=`<h2 class="red">Act now <span class="n">${act.length}</span></h2>`+act.map(a=>card(a,true)).join('');
+  h+=apprBlock(appr);
   if(tod.length) h+=`<h2 class="amber">Today <span class="n">${tod.length}</span></h2>`+tod.map(a=>card(a,true)).join('');
   h+=`<h2>Automations</h2><div class="grid">`+state.systems.map(s=>`<button class="sysc" data-tab="${esc(s.system)}"><i class="dot ${s.health==='green'?'':esc(s.health)}"></i><span><b>${esc(s.name)}</b><small>${esc(s.headline)}${s.open>1?' (+'+(s.open-1)+' more)':''}</small></span></button>`).join('')+`</div>`;
   h+=`<div class="foot">Checked ${ago(lastOk)||'just now'} · <a href="./">Classic view</a></div>`;
@@ -192,8 +217,11 @@ function rows(list,withSys){
 }
 function renderSystem(s){
   const meta=state.systems.find(x=>x.system===s)||{name:s,health:'green',headline:''}, d=sysData[s];
-  const open=state.alerts.filter(a=>a.system===s);
+  const mine=appr.filter(p=>p.system===s), st=stats[s];
+  const open=state.alerts.filter(a=>a.system===s&&!(mine.length&&/:approvals_waiting$/.test(a.alert_id)));
   let h=banner()+`<div class="sysc" style="margin-bottom:6px"><i class="dot ${meta.health==='green'?'':esc(meta.health)}"></i><span><b>${esc(meta.name)}</b><small>${meta.health==='green'?'Doing its job. No open issues.':esc(open.length+' open issue'+(open.length>1?'s':''))}</small></span></div>`;
+  if(st&&st.tiles&&st.tiles.length) h+=`<h2>Numbers</h2><div class="tiles">`+st.tiles.map(t=>`<div class="tile"><small>${esc(t.label)}</small><b class="${String(t.value??'').length>9?'long':''}">${esc(t.value)}</b>${t.sub?`<small>${esc(t.sub)}</small>`:''}</div>`).join('')+`</div>`;
+  h+=apprBlock(mine);
   if(open.length) h+=`<h2>Open issues <span class="n">${open.length}</span></h2>`+open.map(a=>card(a,false)).join('');
   h+=`<h2>Recent activity</h2>`+(d?rows(d.history):'<div class="empty">Loading…</div>');
   if(d&&d.closed&&d.closed.length) h+=`<h2>Recently fixed</h2><div class="box">`+d.closed.map(c=>`<div class="row"><time>${esc(when(c.closed_at))}</time><div><div>${esc(c.title)}</div><small style="color:var(--muted)">${esc(c.resolution||'')}${c.closed_by?' · '+esc(c.closed_by):''}</small></div></div>`).join('')+`</div>`;
@@ -222,6 +250,17 @@ document.addEventListener('click',async e=>{
   const t=e.target.closest('[data-tab]');
   if(t){tab=t.dataset.tab;render();window.scrollTo(0,0);if(tab==='history')loadHistory();else if(tab!=='today')loadSystem(tab);return}
   const c=e.target.closest('.card'); if(!c) return;
+  if(c.dataset.appr!==undefined){
+    if(e.target.closest('[data-more]')){const d=c.querySelector('.detail');d.classList.toggle('open');e.target.textContent=d.classList.contains('open')?'Show less':'Show full post';return}
+    const b=e.target.closest('[data-decide]'); if(!b) return;
+    const p=appr[+c.dataset.appr], dec=b.dataset.decide; if(!p) return;
+    if(dec==='reject'&&!confirm('Reject this post? It will not be published.'))return;
+    c.querySelectorAll('button').forEach(x=>x.disabled=true);
+    try{const j=await api('decide',{system:p.system,id:p.id,decision:dec});
+      if(j&&j.ok){toast(dec==='approve'?'Approved. It will go out on schedule.':'Rejected.');appr=appr.filter(x=>x!==p);render();load(true)}
+      else{toast(j&&j.error==='not_waiting'?'Already handled.':j&&j.error==='not_supported'?'This one must be approved in its own dashboard.':'Could not save that.');loadApprovals()}
+    }catch(_){toast('Could not save that.');c.querySelectorAll('button').forEach(x=>x.disabled=false)}
+    return}
   const a=state.alerts.find(x=>x.alert_id===c.dataset.id); if(!a) return;
   if(e.target.closest('[data-more]')){const d=c.querySelector('.detail');d.classList.toggle('open');e.target.textContent=d.classList.contains('open')?'Show less':'Show more';return}
   if(e.target.closest('[data-claude]')){
@@ -245,10 +284,14 @@ let demoAlerts=[
  {alert_id:'linkedin:login_expired',system:'linkedin',system_name:'LinkedIn posts',level:'act_now',kind:'needs_you',title:'LinkedIn login has expired - posts are not going out',detail:'2 posts could not be published: LI-20261111-5N0UB, LI-20261106-GAT6L.\nNothing has been published on LinkedIn since 6 Nov.',fix_hint:"Open n8n → Credentials → 'LinkedIn account' → Reconnect, sign in to LinkedIn, Save. Posts resume within 15 minutes.",link:'https://n8n.srv1962408.hstgr.cloud/home/credentials',count:1,first_seen:new Date(Date.now()-36e5).toISOString(),last_seen:new Date().toISOString()},
  {alert_id:'lileads:worker_silent',system:'lileads',system_name:'LinkedIn leads',level:'act_now',kind:'stalled',title:'Lead-gen worker on your PC has stopped reporting',detail:'The worker last reported on 15 Nov, 13:21 PKT. While it is silent, no leads are found and no invites or messages go out.',fix_hint:"Check the PC is on and online, then start the 'BWC LinkedIn Worker' task in Task Scheduler.",link:'',count:1,first_seen:new Date(Date.now()-72e5).toISOString()},
  {alert_id:'x:approvals_waiting',system:'x',system_name:'X posts',level:'today',kind:'needs_you',title:'2 X posts waiting for your approval',detail:'Nothing has been published on X since 6 Nov.',fix_hint:'Review the waiting posts, then approve or reject them.',link:'',count:3,first_seen:new Date(Date.now()-2e8).toISOString()}];
+let demoAppr=[{system:'linkedin',id:'LI-DEMO',title:'Why CGI beats a photoshoot for launch week',text:'Most brands book a studio three weeks before launch.\n\nWith CGI the product does not even need to exist yet. Unlimited angles, full lighting control, and changes in hours instead of reshoots.\n\nHere is how we delivered 14 hero shots in 6 days.',media_url:'',scheduled_for:new Date(Date.now()+864e5).toISOString()}];
 function demo(op,x){
   const names={lileads:'LinkedIn leads',email:'Cold email',linkedin:'LinkedIn posts',x:'X posts',instagram:'Instagram posts',bids:'Bid Desk',seo:'Website SEO',hub:'Command Center'};
   if(op==='close'){demoAlerts=demoAlerts.filter(a=>a.alert_id!==x.alert_id);return{ok:true}}
   const h=[{ts:new Date().toISOString(),event:'opened',system:'linkedin',title:'LinkedIn login has expired'},{ts:new Date(Date.now()-864e5).toISOString(),event:'closed',system:'seo',title:'Weekly snapshot was late'}];
+  if(op==='approvals')return{ok:true,items:demoAppr};
+  if(op==='decide'){demoAppr=demoAppr.filter(p=>p.id!==x.id);return{ok:true}}
+  if(op==='stats')return{ok:true,tiles:[{label:'Published, 7 days',value:'4',sub:'last on 16 Nov'},{label:'Waiting for approval',value:'1'},{label:'Next scheduled',value:'17 Nov, 10:00'},{label:'Published, 30 days',value:'17'}]};
   if(op==='history')return{ok:true,history:h};
   if(op==='system')return{ok:true,history:h.filter(r=>r.system===x.system),closed:[]};
   const systems=Object.keys(names).map((s,i)=>{const o=demoAlerts.filter(a=>a.system===s);const w=o.find(a=>a.level==='act_now')||o[0];return{system:s,name:names[s],tab_order:i,health:o.some(a=>a.level==='act_now')?'red':o.length?'amber':'green',open:o.length,headline:w?w.title:'Doing its job'}});
