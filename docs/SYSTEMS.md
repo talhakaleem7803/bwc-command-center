@@ -70,8 +70,20 @@ State as audited on 14 to 15 Nov 2026. n8n project id: `pUWDfaRHbrYTWebj`.
 ## Website SEO (`seo`)
 
 - `BWC weekly SEO snapshot` runs Mondays 06:00 PKT. `BWC publish post` creates or
-  updates WordPress posts on bwcreations.co; it failed on 2 and 9 Nov at
+  updates WordPress posts on bwcreations.co; it failed on 2, 9 and 16 Nov at
   "Find existing post".
+- Cause (tested 16 Nov): WordPress answers every request from n8n as "not logged
+  in", even with a made-up login, so it is not checking the login at all. The
+  workflow is correct. Fix on the site, in this order:
+  1. WP Admin, Users, Profile, "Application Passwords": make one named "n8n" and
+     put it, with the WordPress username, in the n8n credential "Wordpress account".
+  2. If one already exists and it still fails, the host is dropping the login
+     header. Add the standard `HTTP_AUTHORIZATION` passthrough lines to the top of
+     `.htaccess` (above `# BEGIN WordPress`).
+  3. If it still fails, turn off Hostinger CDN for the site and test again; if
+     that fixes it, ask Hostinger to forward the `Authorization` header.
+  4. Test: `wp-json/wp/v2/users/me?context=edit` with the credential must return
+     200 with an administrator or editor role.
 
 ## Limits that cannot be engineered away
 
