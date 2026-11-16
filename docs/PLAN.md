@@ -19,9 +19,9 @@ contract, one alert channel and one screen.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 0 | Stop the bleeding: LinkedIn login, Apify key, Account A, lost posts, blog step, leftovers | Leftovers archived. Waiting on owner: LinkedIn reconnect, worker restart. |
-| 1 | Hub contract: event intake, cause-based alerts, history, one error catcher, outcome checks | In progress (hub v2 workflows) |
+| 1 | Hub contract: event intake, cause-based alerts, history, one error catcher, outcome checks | Done 16 Nov (cold-email outcome check still missing) |
 | 2 | One alert channel: Pushover with action link, critical alerts, morning summary | Built into phase 1 notify; needs Pushover keys |
-| 3 | App rebuild: Today screen, a tab per automation from the registry, approvals in place | Not started |
+| 3 | App rebuild: Today screen, a tab per automation from the registry, approvals in place | First version in `v2.html`. Still to do: numbers per tab, approvals in place, make it the default screen. |
 | 4 | Fix ladder, Fix with Claude in the cloud, weekly review, outside watchdog, Instagram comments | Not started |
 
 ## Waiting on the owner

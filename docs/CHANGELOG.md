@@ -15,6 +15,13 @@ Newest first. One entry per change to n8n or the app.
   `act_now` notices after quiet hours; sends the 09:00 summary. First run raised
   8 alerts (3 `act_now`, sent by email). No cold-email check yet: sends and
   sender health are not in any data table.
+- Built `HUB2 5 - App API` (`mHt4NEFN13eVbRKB`): `POST /webhook/hub2-api` with
+  `{op, k}`; ops `today`, `system`, `history`, `close`, `ping`. Uses the same hub
+  key as v1 (`HUB_CONFIG`, `HUB_KEY`). Answers in under 0.2 s.
+- Added `v2.html`, the new app screen: Today (Act now, Today, automations), a tab
+  per automation from the registry, History. Each alert has its fix steps, "Open
+  the fix", "Fix with Claude" and "Mark done". `index.html` (v1) is unchanged.
+  Open `v2.html?demo` to see it without a key.
 - Error handling repointed to `HUB2 3 - Error Catcher` on 26 active workflows
   (BWC CE 1, IG 1 to 4, LI 1 to 6, X 1 to 3, publish post, weekly SEO, Asset
   Upload, JA 1 to 5, OR 11 to 13, HUB 8 Chat Inbox). Settings change only; no

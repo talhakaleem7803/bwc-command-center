@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#121212">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Command Center</title>
+<style>
+:root{
+  --bg:#121212;--panel:#1b1e21;--panel2:#232629;--line:#30353a;--text:#EEF2F4;--muted:#9aa3ac;
+  --cyan:#34C4D7;--gold:#F6B73C;--green:#00C27A;--red:#FF5D5D;
+  --red-bg:rgba(255,93,93,.12);--gold-bg:rgba(246,183,60,.12);--green-bg:rgba(0,194,122,.12);
+}
+@media (prefers-color-scheme:light){:root{
+  --bg:#EEF2F4;--panel:#fff;--panel2:#f6f8f9;--line:#d9e0e4;--text:#121212;--muted:#5b636b;
+  --red:#d93636;--gold:#b97a00;--green:#008f5a;--cyan:#0f8fa1;
+  --red-bg:rgba(217,54,54,.09);--gold-bg:rgba(185,122,0,.10);--green-bg:rgba(0,143,90,.09);
+}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
+body{padding-bottom:calc(32px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--cyan)}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding-top:env(safe-area-inset-top);border-bottom:1px solid var(--line)}
+.top{display:flex;align-items:center;gap:12px;padding:14px 0 10px}
+.top h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.2px;flex:1}
+.pill{font-size:13px;font-weight:700;padding:5px 11px;border-radius:999px;white-space:nowrap}
+.pill.red{background:var(--red);color:#fff}
+.pill.amber{background:var(--gold-bg);color:var(--gold)}
+.pill.green{background:var(--green-bg);color:var(--green)}
+.pill.off{background:var(--panel2);color:var(--muted)}
+.icon{border:1px solid var(--line);background:var(--panel);border-radius:10px;width:38px;height:38px;font-size:17px;line-height:1}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:0 0 10px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:7px 13px;font-size:14px;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.tab.on{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--green);flex:0 0 auto}
+.dot.red{background:var(--red)}.dot.amber{background:var(--gold)}
+main{padding-top:16px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.9px;color:var(--muted);margin:22px 0 10px;font-weight:700;display:flex;align-items:center;gap:8px}
+h2 .n{background:var(--panel2);border-radius:999px;padding:1px 8px;font-size:12px;color:var(--text)}
+h2.red{color:var(--red)}h2.amber{color:var(--gold)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px;margin-bottom:10px;border-left-width:5px}
+.card.act_now{border-left-color:var(--red)}
+.card.today{border-left-color:var(--gold)}
+.card .sys{font-size:12px;color:var(--muted);font-weight:600;display:flex;gap:8px;flex-wrap:wrap;margin-bottom:3px}
+.card .sys b{color:var(--text)}
+.card h3{margin:0 0 6px;font-size:16.5px;line-height:1.3}
+.card.act_now h3{font-size:17.5px}
+.detail{font-size:14px;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;max-height:4.4em;overflow:hidden;position:relative}
+.detail.open{max-height:none}
+.more{background:none;border:0;padding:2px 0;color:var(--cyan);font-size:13px}
+.fix{margin-top:10px;background:var(--panel2);border-radius:10px;padding:10px 12px;font-size:14.5px}
+.fix span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700;margin-bottom:2px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btn{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:9px 14px;font-size:14.5px;font-weight:600;text-decoration:none;color:var(--text);display:inline-flex;align-items:center;min-height:42px}
+.btn.primary{background:var(--cyan);border-color:var(--cyan);color:#06262b}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.5}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.sysc{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;text-align:left;display:flex;gap:10px;align-items:flex-start;width:100%}
+.sysc .dot{margin-top:7px}
+.sysc b{display:block;font-size:15px}
+.sysc small{color:var(--muted);font-size:13px;display:block;line-height:1.3}
+.clear{background:var(--green-bg);border:1px solid var(--green);border-radius:14px;padding:20px;text-align:center}
+.clear b{display:block;font-size:18px;color:var(--green);margin-bottom:2px}
+.clear small{color:var(--muted)}
+.row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.row:last-child{border-bottom:0}
+.row time{color:var(--muted);font-size:12.5px;flex:0 0 74px}
+.row .ev{font-size:11px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;color:var(--muted)}
+.row .ev.opened,.row .ev.repeated{color:var(--gold)}.row .ev.closed{color:var(--green)}.row .ev.notified{color:var(--cyan)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px 14px}
+.empty{color:var(--muted);font-size:14px;padding:14px 0}
+.banner{background:var(--gold-bg);border:1px solid var(--gold);border-radius:12px;padding:10px 12px;font-size:14px;margin-bottom:12px}
+.foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:26px}
+.setup{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:20px}
+.setup input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;margin:10px 0}
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:.2s;z-index:9;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="top">
+    <h1>Command Center</h1>
+    <span class="pill off" id="pill">Loading</span>
+    <button class="icon" id="refresh" aria-label="Refresh">↻</button>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+</div></header>
+<main class="wrap" id="main"></main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const store={get(k,d){try{return localStorage.getItem(k)??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const BASE='https://n8n.srv1962408.hstgr.cloud/webhook';
+const DEMO=new URLSearchParams(location.search).has('demo')||location.protocol==='file:';
+let key=store.get('hub.key',''), state=null, tab='today', sysData={}, hist=null, lastOk=0, failed=false;
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2600)}
+function ago(ts){if(!ts)return'';const m=Math.round((Date.now()-new Date(ts))/60000);if(isNaN(m))return'';if(m<1)return'just now';if(m<60)return m+' min ago';const h=Math.round(m/60);if(h<48)return h+' h ago';return Math.round(h/24)+' days ago'}
+function when(ts){if(!ts)return'';const d=new Date(ts);if(isNaN(d))return'';return d.toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
+function safeUrl(u){try{const x=new URL(u);return x.protocol==='https:'?x.href:''}catch(e){return''}}
+
+async function api(op,extra){
+  if(DEMO) return demo(op,extra);
+  const r=await fetch(BASE+'/hub2-api',{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({op,k:key},extra||{}))});
+  if(r.status===401) throw new Error('auth');
+  const j=await r.json().catch(()=>null);
+  if(!j) throw new Error('HTTP '+r.status);
+  return j;
+}
+
+async function load(quiet){
+  if(!key&&!DEMO){setup();return}
+  try{
+    state=await api('today'); lastOk=Date.now(); failed=false;
+    if(tab!=='today'&&tab!=='history') loadSystem(tab,true);
+    if(tab==='history') loadHistory(true);
+    render();
+  }catch(e){
+    if(e.message==='auth'){setup(true);return}
+    failed=true; render(); if(!quiet) toast('Could not reach the hub. Showing the last result.');
+  }
+}
+async function loadSystem(s,quiet){try{const j=await api('system',{system:s});if(j&&j.ok){sysData[s]=j;if(tab===s)render()}}catch(e){if(!quiet)toast('Could not load this tab.')}}
+async function loadHistory(quiet){try{const j=await api('history',{limit:80});if(j&&j.ok){hist=j.history;if(tab==='history')render()}}catch(e){if(!quiet)toast('Could not load history.')}}
+
+function setup(bad){
+  $('#tabs').innerHTML='';$('#pill').className='pill off';$('#pill').textContent='Locked';
+  $('#main').innerHTML=`<div class="setup"><b>${bad?'That key was not accepted.':'Enter your hub key'}</b>
+  <div class="empty" style="padding:6px 0 0">The same key you used in the Command Center before. It stays on this device.</div>
+  <input id="k" type="password" autocomplete="off" placeholder="Hub key"><button class="btn primary" id="go">Unlock</button></div>`;
+  $('#go').onclick=()=>{key=$('#k').value.trim();store.set('hub.key',key);$('#main').innerHTML='';load()};
+}
+
+function renderTabs(){
+  const t=[`<button class="tab ${tab==='today'?'on':''}" data-tab="today">Today</button>`];
+  for(const s of state.systems) t.push(`<button class="tab ${tab===s.system?'on':''}" data-tab="${esc(s.system)}"><i class="dot ${s.health==='green'?'':esc(s.health)}"></i>${esc(s.name)}</button>`);
+  t.push(`<button class="tab ${tab==='history'?'on':''}" data-tab="history">History</button>`);
+  $('#tabs').innerHTML=t.join('');
+}
+function renderPill(){
+  const p=$('#pill'),c=state.counts;
+  if(c.act_now){p.className='pill red';p.textContent=c.act_now+' need you now'}
+  else if(c.today){p.className='pill amber';p.textContent=c.today+' for today'}
+  else{p.className='pill green';p.textContent='All clear'}
+  document.title=(c.act_now?'('+c.act_now+') ':'')+'Command Center';
+  if(navigator.setAppBadge){c.act_now?navigator.setAppBadge(c.act_now).catch(()=>{}):navigator.clearAppBadge().catch(()=>{})}
+}
+function card(a,showSys){
+  const link=safeUrl(a.link), long=(a.detail||'').length>110||(a.detail||'').split('\n').length>3;
+  const seen=a.count>1?`seen ${a.count} times`:'', since=a.first_seen?`since ${when(a.first_seen)}`:'';
+  return `<article class="card ${esc(a.level)}" data-id="${esc(a.alert_id)}">
+    <div class="sys">${showSys?`<b>${esc(a.system_name||a.system)}</b>`:''}<span>${esc([seen,since].filter(Boolean).join(' · '))}</span></div>
+    <h3>${esc(a.title)}</h3>
+    ${a.detail?`<div class="detail">${esc(a.detail)}</div>${long?'<button class="more" data-more>Show more</button>':''}`:''}
+    ${a.fix_hint?`<div class="fix"><span>What to do</span>${esc(a.fix_hint)}</div>`:''}
+    <div class="acts">
+      ${link?`<a class="btn primary" href="${esc(link)}" target="_blank" rel="noopener">Open the fix</a>`:''}
+      <button class="btn ${link?'':'primary'}" data-claude>Fix with Claude</button>
+      <button class="btn ghost" data-close>Mark done</button>
+    </div></article>`;
+}
+function banner(){
+  let b='';
+  if(failed) b+=`<div class="banner">Cannot reach the hub right now. This is the last result${lastOk?', from '+ago(lastOk):''}.</div>`;
+  if(state.settings&&state.settings.push_ready===false) b+=`<div class="banner">Phone alerts are going to email until Pushover is set up.</div>`;
+  return b;
+}
+function renderToday(){
+  const act=state.alerts.filter(a=>a.level==='act_now'), tod=state.alerts.filter(a=>a.level==='today');
+  let h=banner();
+  if(!act.length&&!tod.length) h+=`<div class="clear"><b>All systems are doing their job</b><small>Nothing needs you. Go talk to clients.</small></div>`;
+  if(act.length) h+=`<h2 class="red">Act now <span class="n">${act.length}</span></h2>`+act.map(a=>card(a,true)).join('');
+  if(tod.length) h+=`<h2 class="amber">Today <span class="n">${tod.length}</span></h2>`+tod.map(a=>card(a,true)).join('');
+  h+=`<h2>Automations</h2><div class="grid">`+state.systems.map(s=>`<button class="sysc" data-tab="${esc(s.system)}"><i class="dot ${s.health==='green'?'':esc(s.health)}"></i><span><b>${esc(s.name)}</b><small>${esc(s.headline)}${s.open>1?' (+'+(s.open-1)+' more)':''}</small></span></button>`).join('')+`</div>`;
+  h+=`<div class="foot">Checked ${ago(lastOk)||'just now'} · <a href="./">Classic view</a></div>`;
+  return h;
+}
+function rows(list,withSys){
+  if(!list||!list.length) return '<div class="empty">Nothing yet.</div>';
+  return '<div class="box">'+list.map(r=>`<div class="row"><time>${esc(when(r.ts))}</time><div><span class="ev ${esc(r.event)}">${esc(r.event)}</span>${withSys&&r.system?' · '+esc(r.system):''}<div>${esc(r.title)}</div></div></div>`).join('')+'</div>';
+}
+function renderSystem(s){
+  const meta=state.systems.find(x=>x.system===s)||{name:s,health:'green',headline:''}, d=sysData[s];
+  const open=state.alerts.filter(a=>a.system===s);
+  let h=banner()+`<div class="sysc" style="margin-bottom:6px"><i class="dot ${meta.health==='green'?'':esc(meta.health)}"></i><span><b>${esc(meta.name)}</b><small>${meta.health==='green'?'Doing its job. No open issues.':esc(open.length+' open issue'+(open.length>1?'s':''))}</small></span></div>`;
+  if(open.length) h+=`<h2>Open issues <span class="n">${open.length}</span></h2>`+open.map(a=>card(a,false)).join('');
+  h+=`<h2>Recent activity</h2>`+(d?rows(d.history):'<div class="empty">Loading…</div>');
+  if(d&&d.closed&&d.closed.length) h+=`<h2>Recently fixed</h2><div class="box">`+d.closed.map(c=>`<div class="row"><time>${esc(when(c.closed_at))}</time><div><div>${esc(c.title)}</div><small style="color:var(--muted)">${esc(c.resolution||'')}${c.closed_by?' · '+esc(c.closed_by):''}</small></div></div>`).join('')+`</div>`;
+  return h;
+}
+function render(){
+  if(!state){$('#main').innerHTML=failed?'<div class="banner" style="margin-top:16px">Cannot reach the hub. Check your connection and tap refresh.</div>':'';return}
+  renderTabs();renderPill();
+  $('#main').innerHTML=tab==='today'?renderToday():tab==='history'?(banner()+'<h2>Everything that happened</h2>'+(hist?rows(hist,true):'<div class="empty">Loading…</div>')):renderSystem(tab);
+}
+
+function claudePrompt(a){
+  return `Fix this problem in my BWC automations. Work on your own and apply the fix if it can be done in n8n. Ask me only for logins, paid keys, or anything on my PC or phone.
+
+Alert: ${a.alert_id}
+Automation: ${a.system_name||a.system}
+Problem: ${a.title}
+Details: ${a.detail||'none'}
+Suggested fix: ${a.fix_hint||'none'}
+Seen: ${a.count} time(s), first ${a.first_seen||'unknown'}, last ${a.last_seen||'unknown'}
+Failed run: ${a.execution_url||'none'}
+
+Context: n8n at https://n8n.srv1962408.hstgr.cloud (use the n8n connector). The repository bwc-command-center has docs/SYSTEMS.md and docs/HUB2.md describing every automation. Find the root cause, fix it, confirm the automation produces its result again, add a line to docs/CHANGELOG.md, and close the alert through HUB2 1 - Event Intake. Then tell me in plain language what was wrong and what you changed.`;
+}
+document.addEventListener('click',async e=>{
+  const t=e.target.closest('[data-tab]');
+  if(t){tab=t.dataset.tab;render();window.scrollTo(0,0);if(tab==='history')loadHistory();else if(tab!=='today')loadSystem(tab);return}
+  const c=e.target.closest('.card'); if(!c) return;
+  const a=state.alerts.find(x=>x.alert_id===c.dataset.id); if(!a) return;
+  if(e.target.closest('[data-more]')){const d=c.querySelector('.detail');d.classList.toggle('open');e.target.textContent=d.classList.contains('open')?'Show less':'Show more';return}
+  if(e.target.closest('[data-claude]')){
+    const p=claudePrompt(a);try{await navigator.clipboard.writeText(p)}catch(_){}
+    window.open('https://claude.ai/new?q='+encodeURIComponent(p),'_blank','noopener');toast('Opening Claude with the full problem. Also copied.');return}
+  const b=e.target.closest('[data-close]');
+  if(b){
+    if(!confirm('Mark this as done?\n\n'+a.title+'\n\nIf the problem is still there, it will come back at the next hourly check.'))return;
+    b.disabled=true;
+    try{const j=await api('close',{alert_id:a.alert_id});if(j&&(j.ok||j.error==='not_open')){toast('Marked done.');await load(true)}else{toast('Could not close it.');b.disabled=false}}
+    catch(_){toast('Could not close it.');b.disabled=false}
+  }
+});
+$('#refresh').onclick=()=>{load();toast('Refreshing…')};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-lastOk>30000)load(true)});
+setInterval(()=>{if(!document.hidden)load(true)},60000);
+if('serviceWorker' in navigator&&!DEMO) navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+/* Demo data: open this page with ?demo to see the layout without a key. */
+let demoAlerts=[
+ {alert_id:'linkedin:login_expired',system:'linkedin',system_name:'LinkedIn posts',level:'act_now',kind:'needs_you',title:'LinkedIn login has expired - posts are not going out',detail:'2 posts could not be published: LI-20261111-5N0UB, LI-20261106-GAT6L.\nNothing has been published on LinkedIn since 6 Nov.',fix_hint:"Open n8n → Credentials → 'LinkedIn account' → Reconnect, sign in to LinkedIn, Save. Posts resume within 15 minutes.",link:'https://n8n.srv1962408.hstgr.cloud/home/credentials',count:1,first_seen:new Date(Date.now()-36e5).toISOString(),last_seen:new Date().toISOString()},
+ {alert_id:'lileads:worker_silent',system:'lileads',system_name:'LinkedIn leads',level:'act_now',kind:'stalled',title:'Lead-gen worker on your PC has stopped reporting',detail:'The worker last reported on 15 Nov, 13:21 PKT. While it is silent, no leads are found and no invites or messages go out.',fix_hint:"Check the PC is on and online, then start the 'BWC LinkedIn Worker' task in Task Scheduler.",link:'',count:1,first_seen:new Date(Date.now()-72e5).toISOString()},
+ {alert_id:'x:approvals_waiting',system:'x',system_name:'X posts',level:'today',kind:'needs_you',title:'2 X posts waiting for your approval',detail:'Nothing has been published on X since 6 Nov.',fix_hint:'Review the waiting posts, then approve or reject them.',link:'',count:3,first_seen:new Date(Date.now()-2e8).toISOString()}];
+function demo(op,x){
+  const names={lileads:'LinkedIn leads',email:'Cold email',linkedin:'LinkedIn posts',x:'X posts',instagram:'Instagram posts',bids:'Bid Desk',seo:'Website SEO',hub:'Command Center'};
+  if(op==='close'){demoAlerts=demoAlerts.filter(a=>a.alert_id!==x.alert_id);return{ok:true}}
+  const h=[{ts:new Date().toISOString(),event:'opened',system:'linkedin',title:'LinkedIn login has expired'},{ts:new Date(Date.now()-864e5).toISOString(),event:'closed',system:'seo',title:'Weekly snapshot was late'}];
+  if(op==='history')return{ok:true,history:h};
+  if(op==='system')return{ok:true,history:h.filter(r=>r.system===x.system),closed:[]};
+  const systems=Object.keys(names).map((s,i)=>{const o=demoAlerts.filter(a=>a.system===s);const w=o.find(a=>a.level==='act_now')||o[0];return{system:s,name:names[s],tab_order:i,health:o.some(a=>a.level==='act_now')?'red':o.length?'amber':'green',open:o.length,headline:w?w.title:'Doing its job'}});
+  return{ok:true,counts:{act_now:demoAlerts.filter(a=>a.level==='act_now').length,today:demoAlerts.filter(a=>a.level==='today').length},alerts:demoAlerts,systems,settings:{push_ready:false}};
+}
+load();
+</script>
+</body>
+</html>
