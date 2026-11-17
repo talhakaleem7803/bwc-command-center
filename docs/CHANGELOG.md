@@ -4,6 +4,14 @@ Newest first. One entry per change to n8n or the app.
 
 ## 17 Nov 2026
 
+- Proven: LinkedIn post `LI-20261117-NYVPB` published at 10:00 PKT on its first
+  attempt, so the 16 Nov reconnect of "LinkedIn account" works for posting.
+- Proven: the first 09:00 PKT morning summary went out (0 urgent, 8 for today).
+  Owner confirms Pushover alerts arrive on the iPhone.
+- Queued a `fix` command in `HUB_COMMANDS` to resume LinkedIn account A. The PC
+  fixer found the cause (paused 6 Nov after two invites could not be confirmed;
+  not a security check) but could not run Python, so A is still paused. Owner
+  must run `python -m li resume A` in `linkedin-automation`.
 - `HUB2 5 - App API`: three new ops, published as version
   `532bbf7f-3a6c-4ae9-96c8-cd5d5df45891` (last version without them:
   `ae3b5831-b280-4673-a80e-b50e38496e3a`). `approvals` lists posts waiting on

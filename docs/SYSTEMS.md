@@ -26,7 +26,9 @@ State as audited on 14 to 15 Nov 2026. n8n project id: `pUWDfaRHbrYTWebj`.
 - Known failure modes:
   - Apify or Apollo key rejected (HTTP 401). Fix: new key in `.env`, restart worker.
   - Account paused by the circuit breaker after 2 failed actions. Fix: check the
-    account in LinkedIn, then resume.
+    account in LinkedIn, then resume with `python -m li resume A` (or B, C) in
+    `linkedin-automation`. The hub's `fix` command cannot do this: the fixer
+    session on the PC is not allowed to run Python.
   - PC off or offline: the worker stops reporting.
   - Crash events are filed per hour (`lileads:crash:<job>:<YYYY-MM-DDTHH>`), so one
     cause makes many v1 alerts. Hub v2 folds them into one.
