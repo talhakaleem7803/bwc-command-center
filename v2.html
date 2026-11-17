@@ -190,7 +190,8 @@ function apprCard(p,i){
     <h3>${esc(p.title||'Untitled post')}</h3>
     ${p.text?`<div class="detail">${esc(p.text)}</div>${long?'<button class="more" data-more>Show full post</button>':''}`:''}
     ${img?`<img src="${esc(img)}" alt="" loading="lazy">`:''}
-    <div class="acts"><button class="btn primary" data-decide="approve">Approve</button><button class="btn ghost no" data-decide="reject">Reject</button></div></article>`;
+    ${p.can_approve===false&&p.note?`<div class="detail open"><b>Cannot be approved here:</b> ${esc(p.note)}</div>`:''}
+    <div class="acts">${p.can_approve===false?'':'<button class="btn primary" data-decide="approve">Approve</button>'}<button class="btn ghost no" data-decide="reject">Reject</button></div></article>`;
 }
 function apprBlock(list){return list.length?`<h2 class="cyan">Waiting for your approval <span class="n">${list.length}</span></h2>`+list.map(p=>apprCard(p,appr.indexOf(p))).join(''):''}
 function banner(){
@@ -258,7 +259,7 @@ document.addEventListener('click',async e=>{
     c.querySelectorAll('button').forEach(x=>x.disabled=true);
     try{const j=await api('decide',{system:p.system,id:p.id,decision:dec});
       if(j&&j.ok){toast(dec==='approve'?'Approved. It will go out on schedule.':'Rejected.');appr=appr.filter(x=>x!==p);render();load(true)}
-      else{toast(j&&j.error==='not_waiting'?'Already handled.':j&&j.error==='not_supported'?'This one must be approved in its own dashboard.':'Could not save that.');loadApprovals()}
+      else{toast(j&&j.error==='not_waiting'?'Already handled.':j&&j.error==='not_supported'?'This one must be approved in its own dashboard.':j&&j.error==='too_late'?'Too far past its date to approve. Reject it, or change the date in its dashboard.':j&&j.error==='incomplete'?'This post is missing something (text, date or image). Finish it in its dashboard.':'Could not save that.');loadApprovals()}
     }catch(_){toast('Could not save that.');c.querySelectorAll('button').forEach(x=>x.disabled=false)}
     return}
   const a=state.alerts.find(x=>x.alert_id===c.dataset.id); if(!a) return;

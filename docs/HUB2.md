@@ -28,7 +28,21 @@ counter. Health is judged by outcomes. Only `act_now` reaches the phone.
 | `HUB2 2 - Notify` | `ZwX1v6qAR7OJKl4h` | Sub-workflow. Pushover when the keys are set, otherwise Gmail. Holds notices during quiet hours unless forced. Also sends the morning summary. |
 | `HUB2 3 - Error Catcher` | `LWxeg4ePQOkkWMwy` | Error workflow. Maps the failed workflow to a system by the registry prefixes and raises `wf:<id>:<step>`. |
 | `HUB2 4 - Outcome Watch` | `Hgiqv1jFjb02JhHp` | Hourly. Checks what each automation produced, raises and closes alerts, sends the 09:00 summary. |
-| `HUB2 5 - App API` | `mHt4NEFN13eVbRKB` | Webhook `hub2-api` for the app: `today`, `system`, `history`, `close`, `ping`. Key checked against `HUB_CONFIG` `HUB_KEY`. |
+| `HUB2 5 - App API` | `mHt4NEFN13eVbRKB` | Webhook `hub2-api` for the app: `today`, `system`, `history`, `close`, `ping`, `approvals`, `decide`, `stats`. Key checked against `HUB_CONFIG` `HUB_KEY`. |
+
+### App API ops
+
+Body is JSON sent as `text/plain`: `{op, k, ...}`. Wrong key gives 401.
+
+- `approvals` returns `items[]`: `system`, `id`, `title`, `text`, `media_url`
+  (Instagram images only), `scheduled_for`, `created_at`, `media_type`,
+  `can_approve`, `note`. Waiting means Pending Approval and Not Published; X and
+  Instagram drafts are left out when their LinkedIn parent is rejected or replaced.
+- `decide` takes `system`, `id`, `decision` (`approve` or `reject`), optional
+  `note`. Errors: `not_waiting`, `not_supported` (only linkedin, x, instagram),
+  `too_late` (more than 36 h past due), `incomplete`. Each decision adds a
+  `HUB2_HISTORY` row `<system>:approval:<id>`; LinkedIn also adds an `LI_LOG` row.
+- `stats` takes `system`, returns `tiles[]` of `label`, `value`, `sub`.
 
 ### Intake inputs
 

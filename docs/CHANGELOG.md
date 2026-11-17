@@ -2,6 +2,19 @@
 
 Newest first. One entry per change to n8n or the app.
 
+## 17 Nov 2026
+
+- `HUB2 5 - App API`: three new ops, published as version
+  `532bbf7f-3a6c-4ae9-96c8-cd5d5df45891` (last version without them:
+  `ae3b5831-b280-4673-a80e-b50e38496e3a`). `approvals` lists posts waiting on
+  LinkedIn, X and Instagram; `decide` approves or rejects one, writing the same
+  columns as `BWC LI 3`, `BWC X 2` and `BWC IG 2`; `stats` returns the number
+  tiles for each automation. Tested with 25 live calls. The approve and reject
+  writes themselves were checked by reading only, not run on a real post.
+- `v2.html`: a post that cannot be approved in the app (date passed by more than
+  36 hours, or incomplete) now shows the reason and only a Reject button; new
+  messages for `too_late` and `incomplete`.
+
 ## 16 Nov 2026
 
 - Publishers `BWC LI 4`, `BWC X 3`, `BWC IG 3`: "Handle Failure" now treats login
