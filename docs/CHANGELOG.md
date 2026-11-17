@@ -4,6 +4,13 @@ Newest first. One entry per change to n8n or the app.
 
 ## 17 Nov 2026
 
+- New workflow `HUB2 6 - Weekly Review` (`rkwGARsgUOXm5BjI`), Mondays 09:30 PKT.
+  Reads a week of `HUB2_HISTORY` and the open alerts, and raises one card,
+  `hub:weekly_review` (`today`, never the phone): what keeps coming back, what
+  has been open over a week, how many phone alerts were sent, which systems
+  were quiet. Rules are fixed code, no AI call. Each week closes the old card
+  and opens a fresh one. Run twice by hand; the Monday schedule, the quiet-week
+  path and the stale section have not yet run on live data.
 - Proven: LinkedIn post `LI-20261117-NYVPB` published at 10:00 PKT on its first
   attempt, so the 16 Nov reconnect of "LinkedIn account" works for posting.
 - Proven: the first 09:00 PKT morning summary went out (0 urgent, 8 for today).

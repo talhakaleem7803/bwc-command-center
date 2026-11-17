@@ -29,6 +29,7 @@ counter. Health is judged by outcomes. Only `act_now` reaches the phone.
 | `HUB2 3 - Error Catcher` | `LWxeg4ePQOkkWMwy` | Error workflow. Maps the failed workflow to a system by the registry prefixes and raises `wf:<id>:<step>`. |
 | `HUB2 4 - Outcome Watch` | `Hgiqv1jFjb02JhHp` | Hourly. Checks what each automation produced, raises and closes alerts, sends the 09:00 summary. |
 | `HUB2 5 - App API` | `mHt4NEFN13eVbRKB` | Webhook `hub2-api` for the app: `today`, `system`, `history`, `close`, `ping`, `approvals`, `decide`, `stats`. Key checked against `HUB_CONFIG` `HUB_KEY`. |
+| `HUB2 6 - Weekly Review` | `rkwGARsgUOXm5BjI` | Mondays 09:30 PKT. One `hub:weekly_review` card: repeat offenders, stale alerts, phone-alert count, quiet systems. |
 
 ### App API ops
 
