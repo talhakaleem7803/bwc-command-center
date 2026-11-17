@@ -4,6 +4,8 @@ Newest first. One entry per change to n8n or the app.
 
 ## 17 Nov 2026
 
+- Owner resumed LinkedIn account A on the PC (worker's own Python; exact command
+  now in `docs/SYSTEMS.md`).
 - Cold email now has an outcome check. `HUB2 4 - Outcome Watch` reads the CRM
   Sheet hourly (tabs `Emails`, `Replies`, `Health`; status columns only, no
   names or addresses) and raises `email:no_sends`, `email:sender_health_low`

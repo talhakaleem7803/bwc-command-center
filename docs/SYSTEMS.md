@@ -26,8 +26,10 @@ State as audited on 14 to 15 Nov 2026. n8n project id: `pUWDfaRHbrYTWebj`.
 - Known failure modes:
   - Apify or Apollo key rejected (HTTP 401). Fix: new key in `.env`, restart worker.
   - Account paused by the circuit breaker after 2 failed actions. Fix: check the
-    account in LinkedIn, then resume with `python -m li resume A` (or B, C) in
-    `linkedin-automation`. The hub's `fix` command cannot do this: the fixer
+    account in LinkedIn, then resume from the `linkedin-automation` folder with
+    `"%USERPROFILE%\.venvs\bwc-linkedin\Scripts\python.exe" -m li resume A` (or B,
+    C). Plain `python` or `py` does not work: the worker has its own Python there
+    (see `scripts\run_worker.cmd`). The hub's `fix` command cannot do this: the fixer
     session on the PC is not allowed to run Python.
   - PC off or offline: the worker stops reporting.
   - Crash events are filed per hour (`lileads:crash:<job>:<YYYY-MM-DDTHH>`), so one
