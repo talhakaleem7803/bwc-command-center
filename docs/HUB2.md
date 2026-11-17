@@ -65,6 +65,7 @@ Returns `alert_id`, `status`, `level`, `count`, `notified`, `was_new`.
 | `HUB2_ALERTS` | `0EMrTFdpOJq0deoJ` | One row per root cause: level, status, count, first and last seen, notified at, fix hint, resolution. |
 | `HUB2_HISTORY` | `11iyf8Nuh3A2n6aj` | Every raise, repeat, close and notice. |
 | `HUB2_REGISTRY` | `kznUg69KUWy4ywrt` | One row per automation: id, name, tab order, workflow-name prefixes. Adding an automation means adding a row. |
+| `HUB2_CACHE` | `5L1ou63pV1wMeTPG` | Small summaries computed hourly by Outcome Watch for the app (`email:summary`). |
 | `HUB2_SETTINGS` | `jEtkXcDl9mRqAsG5` | Pushover keys, fallback email, quiet hours, re-notify hours, app URL, summary hour. Secret values live here, never in this repository. |
 
 ## Settings

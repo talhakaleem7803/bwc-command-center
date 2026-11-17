@@ -4,6 +4,20 @@ Newest first. One entry per change to n8n or the app.
 
 ## 17 Nov 2026
 
+- Cold email now has an outcome check. `HUB2 4 - Outcome Watch` reads the CRM
+  Sheet hourly (tabs `Emails`, `Replies`, `Health`; status columns only, no
+  names or addresses) and raises `email:no_sends`, `email:sender_health_low`
+  (`act_now` below 40 or on heavy bouncing), `email:approvals_waiting` and
+  `email:replies_waiting`. Rollback version
+  `8f196d22-d699-45af-a94f-5372e18b93b7`. Only `replies_waiting` has fired
+  live; the other three were tested by simulation.
+- New table `HUB2_CACHE` (`5L1ou63pV1wMeTPG`): one row, `email:summary`,
+  refreshed hourly by Outcome Watch.
+- `HUB2 5 - App API`: `stats` for `email` now returns real tiles from that row
+  (sent, replies, waiting approval, approved and waiting, sender health, bounce
+  rate). Rollback version `532bbf7f-3a6c-4ae9-96c8-cd5d5df45891`.
+- Noted, not changed: cold-email drafts look auto-approved; 79 approved emails
+  are waiting, the oldest approved on 12 Oct.
 - New workflow `HUB2 6 - Weekly Review` (`rkwGARsgUOXm5BjI`), Mondays 09:30 PKT.
   Reads a week of `HUB2_HISTORY` and the open alerts, and raises one card,
   `hub:weekly_review` (`today`, never the phone): what keeps coming back, what
