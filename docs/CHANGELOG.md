@@ -11,6 +11,12 @@ Newest first. One entry per change to n8n or the app.
   columns as `BWC LI 3`, `BWC X 2` and `BWC IG 2`; `stats` returns the number
   tiles for each automation. Tested with 25 live calls. The approve and reject
   writes themselves were checked by reading only, not run on a real post.
+- `HUB2 4 - Outcome Watch`, node "Judge Outcomes": `lileads:worker_silent` is now
+  `today` for the first 24 hours of silence and `act_now` after that, so a PC
+  that is off overnight no longer pages the phone. Rollback version
+  `e03fbba8-cdfc-4544-992e-9ed164d6a388`. First run on the new version
+  succeeded; the two new branches are proven only when the worker next goes
+  silent.
 - `v2.html`: a post that cannot be approved in the app (date passed by more than
   36 hours, or incomplete) now shows the reason and only a Reject button; new
   messages for `too_late` and `incomplete`.
