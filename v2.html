@@ -92,6 +92,16 @@ h2.cyan{color:var(--cyan)}
 .btn.no{color:var(--red)}
 .toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:.2s;z-index:9;max-width:90vw}
 .toast.show{opacity:1;transform:translateX(-50%)}
+@media(min-width:700px){.tabs{flex-wrap:wrap;overflow:visible}}
+.req{margin-top:10px;border-radius:10px;padding:9px 12px;font-size:14px;background:var(--panel2);border-left:4px solid var(--cyan);white-space:pre-wrap;overflow-wrap:anywhere}
+.req b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--cyan);margin-bottom:2px}
+.req.done{border-left-color:var(--green)}.req.done b{color:var(--green)}
+.req.needs_you{border-left-color:var(--gold)}.req.needs_you b{color:var(--gold)}
+.req.failed{border-left-color:var(--red)}.req.failed b{color:var(--red)}
+.ask{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.ask textarea{width:100%;min-height:74px;resize:vertical;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;font-size:15px}
+.ask small{color:var(--muted);font-size:12.5px;display:block;margin-top:6px}
+.btn.sm{min-height:34px;padding:5px 11px;font-size:13px;font-weight:500}
 </style>
 </head>
 <body>
@@ -111,7 +121,7 @@ const $=s=>document.querySelector(s);
 const store={get(k,d){try{return localStorage.getItem(k)??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const BASE='https://n8n.srv1962408.hstgr.cloud/webhook';
 const DEMO=new URLSearchParams(location.search).has('demo')||location.protocol==='file:';
-let key=store.get('hub.key',''), state=null, tab='today', sysData={}, stats={}, appr=[], hist=null, lastOk=0, failed=false;
+let key=store.get('hub.key',''), state=null, tab='today', sysData={}, stats={}, appr=[], hist=null, reqs=null, draft='', lastOk=0, failed=false;
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2600)}
@@ -135,6 +145,7 @@ async function load(quiet){
     loadApprovals();
     if(tab!=='today'&&tab!=='history') loadSystem(tab,true);
     if(tab==='history') loadHistory(true);
+    if(tab==='requests'||reqs===null) loadRequests();
     render();
   }catch(e){
     if(e.message==='auth'){setup(true);return}
@@ -144,6 +155,8 @@ async function load(quiet){
 async function loadSystem(s,quiet){loadStats(s);try{const j=await api('system',{system:s});if(j&&j.ok){sysData[s]=j;if(tab===s)render()}}catch(e){if(!quiet)toast('Could not load this tab.')}}
 async function loadApprovals(){try{const j=await api('approvals');if(j&&j.ok&&Array.isArray(j.items)){appr=j.items;render()}}catch(e){}}
 async function loadStats(s){try{const j=await api('stats',{system:s});if(j&&j.ok){stats[s]=j;if(tab===s)render()}}catch(e){}}
+async function loadRequests(){try{const j=await api('requests');if(j&&j.ok&&Array.isArray(j.items)){reqs=j.items;if(tab==='requests'&&!typing())render()}}catch(e){}}
+const typing=()=>document.activeElement&&document.activeElement.id==='askt';
 async function loadHistory(quiet){try{const j=await api('history',{limit:80});if(j&&j.ok){hist=j.history;if(tab==='history')render()}}catch(e){if(!quiet)toast('Could not load history.')}}
 
 function setup(bad){
@@ -157,6 +170,8 @@ function setup(bad){
 function renderTabs(){
   const t=[`<button class="tab ${tab==='today'?'on':''}" data-tab="today">Today</button>`];
   for(const s of state.systems) t.push(`<button class="tab ${tab===s.system?'on':''}" data-tab="${esc(s.system)}"><i class="dot ${s.health==='green'?'':esc(s.health)}"></i>${esc(s.name)}</button>`);
+  const busy=(reqs||[]).filter(r=>r.status==='queued'||r.status==='working').length;
+  t.push(`<button class="tab ${tab==='requests'?'on':''}" data-tab="requests">Ask Claude${busy?' ('+busy+')':''}</button>`);
   t.push(`<button class="tab ${tab==='history'?'on':''}" data-tab="history">History</button>`);
   $('#tabs').innerHTML=t.join('');
 }
@@ -176,11 +191,31 @@ function card(a,showSys){
     <h3>${esc(a.title)}</h3>
     ${a.detail?`<div class="detail">${esc(a.detail)}</div>${long?'<button class="more" data-more>Show more</button>':''}`:''}
     ${a.fix_hint?`<div class="fix"><span>What to do</span>${esc(a.fix_hint)}</div>`:''}
+    ${reqStrip(a.request)}
     <div class="acts">
       ${link?`<a class="btn primary" href="${esc(link)}" target="_blank" rel="noopener">Open the fix</a>`:''}
-      <button class="btn ${link?'':'primary'}" data-claude>Fix with Claude</button>
+      ${busyReq(a.request)?'':`<button class="btn ${link?'':'primary'}" data-fix>${a.request?'Ask Claude again':'Fix it for me'}</button>`}
       <button class="btn ghost" data-close>Mark done</button>
+      <button class="btn ghost sm" data-claude>Open in chat</button>
     </div></article>`;
+}
+const RQ={queued:'Sent to Claude',working:'Claude is working on it',done:'Claude finished',needs_you:'Claude needs you',failed:'Claude could not fix it'};
+const busyReq=r=>r&&(r.status==='queued'||r.status==='working');
+function reqStrip(r){
+  if(!r||!r.status) return '';
+  const txt=r.result||(r.status==='queued'?'Picked up at the next hourly round. The answer appears here.':r.status==='working'?'Started '+ago(r.updated_at)+'.':'');
+  return `<div class="req ${esc(r.status)}"><b>${esc(RQ[r.status]||r.status)}${r.updated_at?' · '+esc(ago(r.updated_at)):''}</b>${esc(txt)}</div>`;
+}
+function askBox(){
+  return `<div class="ask"><textarea id="askt" maxlength="2000" placeholder="Ask Claude to fix or change anything. Example: Add a tile for bounced emails. Or: Why did yesterday's post not go out?">${esc(draft)}</textarea>
+  <div class="acts" style="margin-top:8px"><button class="btn primary" id="asks">Send to Claude</button></div>
+  <small>Claude picks requests up every hour, does the work on its own, and writes the result here. It will only come back to you for logins, paid keys, or something on your PC or phone.</small></div>`;
+}
+function renderRequests(){
+  let h=banner()+'<h2>Ask Claude</h2>'+askBox()+'<h2>Your requests</h2>';
+  if(reqs===null) return h+'<div class="empty">Loading…</div>';
+  if(!reqs.length) return h+'<div class="empty">Nothing asked yet.</div>';
+  return h+reqs.map(r=>`<article class="card" style="border-left-color:var(--line)"><div class="sys"><b>${r.kind==='fix'?'Fix':'Change'}</b><span>${esc(when(r.created_at))}</span></div><h3>${esc(r.title||r.text||'Request')}</h3>${r.kind!=='fix'&&r.text&&r.text!==r.title?`<div class="detail open">${esc(r.text)}</div>`:''}${reqStrip(r)}</article>`).join('');
 }
 const SYSN={linkedin:'LinkedIn post',x:'X post',instagram:'Instagram post'};
 function apprCard(p,i){
@@ -190,8 +225,8 @@ function apprCard(p,i){
     <h3>${esc(p.title||'Untitled post')}</h3>
     ${p.text?`<div class="detail">${esc(p.text)}</div>${long?'<button class="more" data-more>Show full post</button>':''}`:''}
     ${img?`<img src="${esc(img)}" alt="" loading="lazy">`:''}
-    ${p.can_approve===false&&p.note?`<div class="detail open"><b>Cannot be approved here:</b> ${esc(p.note)}</div>`:''}
-    <div class="acts">${p.can_approve===false?'':'<button class="btn primary" data-decide="approve">Approve</button>'}<button class="btn ghost no" data-decide="reject">Reject</button></div></article>`;
+    ${p.can_approve===false&&p.note?`<div class="detail open"><b>${p.can_reschedule?'Its date has passed:':'Cannot be approved here:'}</b> ${esc(p.can_reschedule?'approving will move it to the next free slot.':p.note)}</div>`:''}
+    <div class="acts">${p.can_approve===false?(p.can_reschedule?`<button class="btn primary" data-decide="approve" data-resched="1">Approve, post ${p.next_slot?esc(when(p.next_slot)):'at the next free slot'}</button>`:''):'<button class="btn primary" data-decide="approve">Approve</button>'}<button class="btn ghost no" data-decide="reject">Reject</button></div></article>`;
 }
 function apprBlock(list){return list.length?`<h2 class="cyan">Waiting for your approval <span class="n">${list.length}</span></h2>`+list.map(p=>apprCard(p,appr.indexOf(p))).join(''):''}
 function banner(){
@@ -231,7 +266,7 @@ function renderSystem(s){
 function render(){
   if(!state){$('#main').innerHTML=failed?'<div class="banner" style="margin-top:16px">Cannot reach the hub. Check your connection and tap refresh.</div>':'';return}
   renderTabs();renderPill();
-  $('#main').innerHTML=tab==='today'?renderToday():tab==='history'?(banner()+'<h2>Everything that happened</h2>'+(hist?rows(hist,true):'<div class="empty">Loading…</div>')):renderSystem(tab);
+  $('#main').innerHTML=tab==='today'?renderToday():tab==='requests'?renderRequests():tab==='history'?(banner()+'<h2>Everything that happened</h2>'+(hist?rows(hist,true):'<div class="empty">Loading…</div>')):renderSystem(tab);
 }
 
 function claudePrompt(a){
@@ -249,7 +284,8 @@ Context: n8n at https://n8n.srv1962408.hstgr.cloud (use the n8n connector). The 
 }
 document.addEventListener('click',async e=>{
   const t=e.target.closest('[data-tab]');
-  if(t){tab=t.dataset.tab;render();window.scrollTo(0,0);if(tab==='history')loadHistory();else if(tab!=='today')loadSystem(tab);return}
+  if(t){tab=t.dataset.tab;render();window.scrollTo(0,0);if(tab==='history')loadHistory();else if(tab==='requests')loadRequests();else if(tab!=='today')loadSystem(tab);return}
+  if(e.target.closest('#asks')){sendAsk(e.target.closest('#asks'));return}
   const c=e.target.closest('.card'); if(!c) return;
   if(c.dataset.appr!==undefined){
     if(e.target.closest('[data-more]')){const d=c.querySelector('.detail');d.classList.toggle('open');e.target.textContent=d.classList.contains('open')?'Show less':'Show full post';return}
@@ -257,7 +293,7 @@ document.addEventListener('click',async e=>{
     const p=appr[+c.dataset.appr], dec=b.dataset.decide; if(!p) return;
     if(dec==='reject'&&!confirm('Reject this post? It will not be published.'))return;
     c.querySelectorAll('button').forEach(x=>x.disabled=true);
-    try{const j=await api('decide',{system:p.system,id:p.id,decision:dec});
+    try{const j=await api('decide',Object.assign({system:p.system,id:p.id,decision:dec},b.dataset.resched?{reschedule:true}:{}));
       if(j&&j.ok){toast(dec==='approve'?'Approved. It will go out on schedule.':'Rejected.');appr=appr.filter(x=>x!==p);render();load(true)}
       else{toast(j&&j.error==='not_waiting'?'Already handled.':j&&j.error==='not_supported'?'This one must be approved in its own dashboard.':j&&j.error==='too_late'?'Too far past its date to approve. Reject it, or change the date in its dashboard.':j&&j.error==='incomplete'?'This post is missing something (text, date or image). Finish it in its dashboard.':'Could not save that.');loadApprovals()}
     }catch(_){toast('Could not save that.');c.querySelectorAll('button').forEach(x=>x.disabled=false)}
@@ -267,6 +303,15 @@ document.addEventListener('click',async e=>{
   if(e.target.closest('[data-claude]')){
     const p=claudePrompt(a);try{await navigator.clipboard.writeText(p)}catch(_){}
     window.open('https://claude.ai/new?q='+encodeURIComponent(p),'_blank','noopener');toast('Opening Claude with the full problem. Also copied.');return}
+  const fx=e.target.closest('[data-fix]');
+  if(fx){
+    const note=a.request?prompt('Tell Claude what is still wrong (optional):',''):'' ; if(note===null) return;
+    fx.disabled=true;
+    try{const j=await api('request',{kind:'fix',alert_id:a.alert_id,text:note||''});
+      if(j&&j.ok){toast(j.existing?'Claude already has this one.':'Sent. Claude will work on it and report here.');a.request={id:j.id,status:'queued',updated_at:new Date().toISOString()};render();loadRequests()}
+      else{toast(j&&j.error==='not_open'?'This issue is already closed.':'Could not send that.');fx.disabled=false}
+    }catch(_){toast('Could not send that.');fx.disabled=false}
+    return}
   const b=e.target.closest('[data-close]');
   if(b){
     if(!confirm('Mark this as done?\n\n'+a.title+'\n\nIf the problem is still there, it will come back at the next hourly check.'))return;
@@ -275,9 +320,18 @@ document.addEventListener('click',async e=>{
     catch(_){toast('Could not close it.');b.disabled=false}
   }
 });
+document.addEventListener('input',e=>{if(e.target.id==='askt')draft=e.target.value});
+async function sendAsk(btn){
+  const text=draft.trim(); if(text.length<5){toast('Write a little more so Claude knows what you want.');return}
+  btn.disabled=true;
+  try{const j=await api('request',{kind:'change',text});
+    if(j&&j.ok){draft='';toast('Sent. The result will appear below.');await loadRequests();render()}
+    else{toast('Could not send that.');btn.disabled=false}
+  }catch(_){toast('Could not send that.');btn.disabled=false}
+}
 $('#refresh').onclick=()=>{load();toast('Refreshing…')};
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-lastOk>30000)load(true)});
-setInterval(()=>{if(!document.hidden)load(true)},60000);
+setInterval(()=>{if(!document.hidden&&!typing())load(true)},60000);
 if('serviceWorker' in navigator&&!DEMO) navigator.serviceWorker.register('sw.js').catch(()=>{});
 
 /* Demo data: open this page with ?demo to see the layout without a key. */
@@ -285,11 +339,14 @@ let demoAlerts=[
  {alert_id:'linkedin:login_expired',system:'linkedin',system_name:'LinkedIn posts',level:'act_now',kind:'needs_you',title:'LinkedIn login has expired - posts are not going out',detail:'2 posts could not be published: LI-20261111-5N0UB, LI-20261106-GAT6L.\nNothing has been published on LinkedIn since 6 Nov.',fix_hint:"Open n8n → Credentials → 'LinkedIn account' → Reconnect, sign in to LinkedIn, Save. Posts resume within 15 minutes.",link:'https://n8n.srv1962408.hstgr.cloud/home/credentials',count:1,first_seen:new Date(Date.now()-36e5).toISOString(),last_seen:new Date().toISOString()},
  {alert_id:'lileads:worker_silent',system:'lileads',system_name:'LinkedIn leads',level:'act_now',kind:'stalled',title:'Lead-gen worker on your PC has stopped reporting',detail:'The worker last reported on 15 Nov, 13:21 PKT. While it is silent, no leads are found and no invites or messages go out.',fix_hint:"Check the PC is on and online, then start the 'BWC LinkedIn Worker' task in Task Scheduler.",link:'',count:1,first_seen:new Date(Date.now()-72e5).toISOString()},
  {alert_id:'x:approvals_waiting',system:'x',system_name:'X posts',level:'today',kind:'needs_you',title:'2 X posts waiting for your approval',detail:'Nothing has been published on X since 6 Nov.',fix_hint:'Review the waiting posts, then approve or reject them.',link:'',count:3,first_seen:new Date(Date.now()-2e8).toISOString()}];
-let demoAppr=[{system:'linkedin',id:'LI-DEMO',title:'Why CGI beats a photoshoot for launch week',text:'Most brands book a studio three weeks before launch.\n\nWith CGI the product does not even need to exist yet. Unlimited angles, full lighting control, and changes in hours instead of reshoots.\n\nHere is how we delivered 14 hero shots in 6 days.',media_url:'',scheduled_for:new Date(Date.now()+864e5).toISOString()}];
+let demoAppr=[{system:'linkedin',id:'LI-DEMO',title:'Why CGI beats a photoshoot for launch week',text:'Most brands book a studio three weeks before launch.\n\nWith CGI the product does not even need to exist yet. Unlimited angles, full lighting control, and changes in hours instead of reshoots.\n\nHere is how we delivered 14 hero shots in 6 days.',media_url:'',scheduled_for:new Date(Date.now()+864e5).toISOString()},{system:'linkedin',id:'LI-OLD',title:'Seven years and 200+ projects in',text:'Old post whose date passed.',media_url:'',scheduled_for:new Date(Date.now()-3e9).toISOString(),can_approve:false,note:'This post was due more than 36 hours ago.',can_reschedule:true,next_slot:new Date(Date.now()+1728e5).toISOString()}];
+let demoReqs=[{id:'req_1',kind:'change',title:'Add a tile for bounced emails',text:'Add a tile for bounced emails',status:'done',result:'Added "Bounce rate" to the Cold email tab. It shows bounces out of the last 100 emails.',created_at:new Date(Date.now()-9e6).toISOString(),updated_at:new Date(Date.now()-6e6).toISOString()}];
 function demo(op,x){
   const names={lileads:'LinkedIn leads',email:'Cold email',linkedin:'LinkedIn posts',x:'X posts',instagram:'Instagram posts',bids:'Bid Desk',seo:'Website SEO',hub:'Command Center'};
   if(op==='close'){demoAlerts=demoAlerts.filter(a=>a.alert_id!==x.alert_id);return{ok:true}}
   const h=[{ts:new Date().toISOString(),event:'opened',system:'linkedin',title:'LinkedIn login has expired'},{ts:new Date(Date.now()-864e5).toISOString(),event:'closed',system:'seo',title:'Weekly snapshot was late'}];
+  if(op==='requests')return{ok:true,items:demoReqs};
+  if(op==='request'){const id='req_'+Date.now();const al=demoAlerts.find(a=>a.alert_id===x.alert_id);demoReqs.unshift({id,kind:x.kind,alert_id:x.alert_id||'',title:al?al.title:x.text.slice(0,80),text:x.text,status:'queued',result:'',created_at:new Date().toISOString(),updated_at:new Date().toISOString()});if(al)al.request={id,status:'queued',updated_at:new Date().toISOString()};return{ok:true,id}}
   if(op==='approvals')return{ok:true,items:demoAppr};
   if(op==='decide'){demoAppr=demoAppr.filter(p=>p.id!==x.id);return{ok:true}}
   if(op==='stats')return{ok:true,tiles:[{label:'Published, 7 days',value:'4',sub:'last on 16 Nov'},{label:'Waiting for approval',value:'1'},{label:'Next scheduled',value:'17 Nov, 10:00'},{label:'Published, 30 days',value:'17'}]};
